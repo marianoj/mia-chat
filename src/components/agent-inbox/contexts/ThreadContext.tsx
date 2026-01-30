@@ -18,6 +18,7 @@ import {
   OFFSET_PARAM,
   LANGCHAIN_API_KEY_LOCAL_STORAGE_KEY,
   IMPROPER_SCHEMA,
+  CHAT_THREAD_PARAM,
 } from "../constants";
 import {
   getInterruptFromThread,
@@ -60,6 +61,15 @@ type ThreadContentType<
   fetchSingleThread: (
     threadId: string
   ) => Promise<ThreadData<ThreadValues> | undefined>;
+  // Chat threads
+  chatThreads: Thread[];
+  chatThreadsLoading: boolean;
+  currentChatThreadId: string | null;
+  setCurrentChatThreadId: (id: string | null) => void;
+  refreshChatThreads: () => Promise<void>;
+  // Thread management
+  renameThread: (threadId: string, title: string) => Promise<void>;
+  deleteChatThread: (threadId: string) => Promise<void>;
 };
 
 const ThreadsContext = React.createContext<ThreadContentType | undefined>(
@@ -117,7 +127,7 @@ export function ThreadsProvider<
   const { getItem } = useLocalStorage();
   const { toast } = useToast();
 
-  const { getSearchParam, searchParams } = useQueryParams();
+  const { getSearchParam, searchParams, updateQueryParams } = useQueryParams();
   const [loading, setLoading] = React.useState(false);
   const [threadData, setThreadData] = React.useState<
     ThreadData<ThreadValues>[]
@@ -132,9 +142,75 @@ export function ThreadsProvider<
     updateAgentInbox,
   } = useInboxes();
 
+  // Chat threads state
+  const [chatThreads, setChatThreads] = React.useState<Thread[]>([]);
+  const [chatThreadsLoading, setChatThreadsLoading] = React.useState(false);
+  const [currentChatThreadId, setCurrentChatThreadIdInternal] = React.useState<string | null>(null);
+
+  // Sync thread ID from URL (on mount and when URL changes)
+  const threadParam = searchParams.get(CHAT_THREAD_PARAM);
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    // Only sync if we're on the chat page
+    if (window.location.pathname === "/chat") {
+      setCurrentChatThreadIdInternal(threadParam || null);
+    }
+  }, [threadParam]);
+
+  // Wrapper that also updates URL when on /chat page
+  const setCurrentChatThreadId = React.useCallback((id: string | null) => {
+    setCurrentChatThreadIdInternal(id);
+    // Only update URL if we're on the chat page
+    if (typeof window !== "undefined" && window.location.pathname === "/chat") {
+      if (id) {
+        updateQueryParams(CHAT_THREAD_PARAM, id);
+      } else {
+        updateQueryParams(CHAT_THREAD_PARAM);  // Remove param
+      }
+    }
+  }, [updateQueryParams]);
+
   const limitParam = searchParams.get(LIMIT_PARAM);
   const offsetParam = searchParams.get(OFFSET_PARAM);
   const inboxParam = searchParams.get(INBOX_PARAM);
+
+  // Get selected inbox info for stable dependencies
+  const selectedInbox = agentInboxes.find((i) => i.selected);
+  const selectedDeploymentUrl = selectedInbox?.deploymentUrl;
+
+  // Fetch all chat threads for sidebar (from all agents)
+  const refreshChatThreads = React.useCallback(async () => {
+    if (!selectedDeploymentUrl) {
+      setChatThreads([]);
+      return;
+    }
+
+    setChatThreadsLoading(true);
+    try {
+      const langchainApiKey = getItem(LANGCHAIN_API_KEY_LOCAL_STORAGE_KEY) || undefined;
+      const client = createClient({
+        deploymentUrl: selectedDeploymentUrl,
+        langchainApiKey,
+      });
+
+      // Fetch all threads without filtering by agent
+      const threads = await client.threads.search({
+        limit: 100,
+      });
+
+      setChatThreads(threads);
+    } catch (e) {
+      logger.error("Failed to fetch chat threads:", e);
+      setChatThreads([]);
+    } finally {
+      setChatThreadsLoading(false);
+    }
+  }, [selectedDeploymentUrl, getItem]);
+
+  // Fetch chat threads when deployment URL changes
+  React.useEffect(() => {
+    refreshChatThreads();
+  }, [selectedDeploymentUrl]);
 
   React.useEffect(() => {
     if (typeof window === "undefined") {
@@ -466,6 +542,88 @@ export function ThreadsProvider<
     setThreadData([]);
   }, []);
 
+  const renameThread = React.useCallback(
+    async (threadId: string, title: string) => {
+      const client = getClient({
+        agentInboxes,
+        getItem,
+        toast,
+      });
+      if (!client) {
+        return;
+      }
+      try {
+        await client.threads.update(threadId, {
+          metadata: { title },
+        });
+
+        // Update local state
+        setChatThreads((prev) =>
+          prev.map((thread) =>
+            thread.thread_id === threadId
+              ? { ...thread, metadata: { ...thread.metadata, title } }
+              : thread
+          )
+        );
+        toast({
+          title: "Success",
+          description: "Thread renamed",
+          duration: 3000,
+        });
+      } catch (e) {
+        logger.error("Error renaming thread", e);
+        toast({
+          title: "Error",
+          description: "Failed to rename thread",
+          variant: "destructive",
+          duration: 3000,
+        });
+      }
+    },
+    [agentInboxes, getItem, toast]
+  );
+
+  const deleteChatThread = React.useCallback(
+    async (threadId: string) => {
+      const client = getClient({
+        agentInboxes,
+        getItem,
+        toast,
+      });
+      if (!client) {
+        return;
+      }
+      try {
+        await client.threads.delete(threadId);
+
+        // Update local state
+        setChatThreads((prev) =>
+          prev.filter((thread) => thread.thread_id !== threadId)
+        );
+
+        // If we deleted the current thread, clear selection
+        if (currentChatThreadId === threadId) {
+          setCurrentChatThreadId(null);
+        }
+
+        toast({
+          title: "Success",
+          description: "Thread deleted",
+          duration: 3000,
+        });
+      } catch (e) {
+        logger.error("Error deleting thread", e);
+        toast({
+          title: "Error",
+          description: "Failed to delete thread",
+          variant: "destructive",
+          duration: 3000,
+        });
+      }
+    },
+    [agentInboxes, getItem, toast, currentChatThreadId, setCurrentChatThreadId]
+  );
+
   const contextValue: ThreadContentType = {
     loading,
     threadData,
@@ -480,6 +638,15 @@ export function ThreadsProvider<
     fetchThreads,
     fetchSingleThread,
     clearThreadData,
+    // Chat threads
+    chatThreads,
+    chatThreadsLoading,
+    currentChatThreadId,
+    setCurrentChatThreadId,
+    refreshChatThreads,
+    // Thread management
+    renameThread,
+    deleteChatThread,
   };
 
   return (

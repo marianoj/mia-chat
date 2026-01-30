@@ -1,6 +1,7 @@
 "use client";
 
 import NextLink from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Sidebar,
   SidebarContent,
@@ -10,7 +11,14 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import { FileText, UploadCloud, House, MessageSquare } from "lucide-react";
+import {
+  FileText,
+  UploadCloud,
+  House,
+  LoaderCircle,
+  MessageSquare,
+  Plus,
+} from "lucide-react";
 import { agentInboxSvg } from "../agent-inbox/components/agent-inbox-logo";
 import { SettingsPopover } from "../agent-inbox/components/settings-popover";
 import { PillButton } from "../ui/pill-button";
@@ -33,10 +41,58 @@ import {
 import { AddAgentInboxDialog } from "../agent-inbox/components/add-agent-inbox-dialog";
 import { useLocalStorage } from "../agent-inbox/hooks/use-local-storage";
 import { DropdownDialogMenu } from "../agent-inbox/components/dropdown-and-dialog";
+import { Thread } from "@langchain/langgraph-sdk";
+import { ThreadActionsMenu } from "./thread-actions-menu";
+
+// Date formatting for thread grouping
+function formatDate(date: string | Date): string {
+  const d = new Date(date);
+  const now = new Date();
+  const isToday = d.toDateString() === now.toDateString();
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const isYesterday = d.toDateString() === yesterday.toDateString();
+
+  if (isToday) return "Today";
+  if (isYesterday) return "Yesterday";
+  return d.toLocaleDateString([], { month: "short", day: "numeric" }).toUpperCase();
+}
+
+// Get thread title from thread data
+function getThreadTitle(thread: Thread): string {
+  if (thread.metadata?.title) {
+    return thread.metadata.title as string;
+  }
+
+  const values = thread.values as Record<string, unknown> | undefined;
+  if (values?.messages && Array.isArray(values.messages)) {
+    const firstHumanMessage = values.messages.find(
+      (m: { type?: string }) => m.type === "human"
+    );
+    if (firstHumanMessage) {
+      const content = firstHumanMessage.content;
+      if (typeof content === "string") {
+        return content.slice(0, 40) + (content.length > 40 ? "..." : "");
+      }
+    }
+  }
+
+  return `Chat ${thread.thread_id.slice(0, 8)}...`;
+}
 
 export function AppSidebar() {
-  const { agentInboxes, changeAgentInbox, deleteAgentInbox } =
-    useThreadsContext();
+  const router = useRouter();
+  const {
+    agentInboxes,
+    changeAgentInbox,
+    deleteAgentInbox,
+    chatThreads,
+    chatThreadsLoading,
+    currentChatThreadId,
+    setCurrentChatThreadId,
+    renameThread,
+    deleteChatThread,
+  } = useThreadsContext();
   const [langchainApiKey, setLangchainApiKey] = React.useState("");
   const { getItem, setItem } = useLocalStorage();
 
@@ -62,101 +118,202 @@ export function AppSidebar() {
     setItem(LANGCHAIN_API_KEY_LOCAL_STORAGE_KEY, e.target.value);
   };
 
+  const handleNewChat = () => {
+    setCurrentChatThreadId(null);
+    router.push("/chat");  // No thread param = new chat
+  };
+
+  const handleSelectThread = (threadId: string) => {
+    setCurrentChatThreadId(threadId);
+    router.push(`/chat?thread=${threadId}`);
+  };
+
+  // Group threads by date
+  const groupedThreads = React.useMemo(() => {
+    return chatThreads.reduce(
+      (acc, thread) => {
+        const dateKey = formatDate(thread.created_at);
+        if (!acc[dateKey]) {
+          acc[dateKey] = [];
+        }
+        acc[dateKey].push(thread);
+        return acc;
+      },
+      {} as Record<string, Thread[]>
+    );
+  }, [chatThreads]);
+
   return (
     <Sidebar className="border-r-[0px] bg-[#F9FAFB]">
-      <SidebarContent className="flex flex-col h-screen pb-9 pt-6">
-        <div className="flex items-center justify-between px-11">
-          <NextLink href="/" className="flex-shrink-0 w-full">
+      <SidebarContent className="flex flex-col h-screen pb-4 pt-6">
+        {/* Header */}
+        <div className="flex items-center justify-between px-4">
+          <NextLink href="/" className="flex-shrink-0">
             {agentInboxSvg}
           </NextLink>
           <AppSidebarTrigger isOutside={false} className="mt-1" />
         </div>
-        <SidebarGroup className="flex-1 overflow-y-auto pt-6">
-          <SidebarGroupContent className="h-full">
-            <SidebarMenu className="flex flex-col gap-2 justify-between h-full">
-              <div className="flex flex-col gap-2 pl-7">
-                {agentInboxes.map((item, idx) => {
-                  const label = item.name || prettifyText(item.graphId);
-                  const isDeployed = isDeployedUrl(item.deploymentUrl);
-                  return (
-                    <SidebarMenuItem
-                      key={`graph-id-${item.graphId}-${idx}`}
-                      className={cn(
-                        "flex items-center w-full",
-                        item.selected ? "bg-gray-100 rounded-md" : ""
-                      )}
-                    >
-                      <TooltipProvider>
-                        <Tooltip delayDuration={200}>
-                          <TooltipTrigger asChild>
-                            <SidebarMenuButton
-                              onClick={() => changeAgentInbox(item.id, true)}
-                            >
-                              {isDeployed ? (
-                                <UploadCloud className="w-5 h-5 text-blue-500" />
-                              ) : (
-                                <House className="w-5 h-5 text-green-500" />
+
+        {/* Agent Inboxes Section */}
+        <SidebarGroup className="pt-4 px-2">
+          <div className="flex items-center justify-between px-2 mb-2">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              Agent Inboxes
+            </p>
+            <AddAgentInboxDialog
+              hideTrigger={false}
+              langchainApiKey={langchainApiKey}
+              handleChangeLangChainApiKey={handleChangeLangChainApiKey}
+              customTrigger={
+                <button className="p-1 hover:bg-gray-200 rounded transition-colors">
+                  <Plus className="h-4 w-4 text-gray-500" />
+                </button>
+              }
+            />
+          </div>
+          <SidebarGroupContent>
+            <SidebarMenu className="flex flex-col gap-1">
+              {agentInboxes.map((item, idx) => {
+                const label = item.name || prettifyText(item.graphId);
+                const isDeployed = isDeployedUrl(item.deploymentUrl);
+                return (
+                  <SidebarMenuItem
+                    key={`graph-id-${item.graphId}-${idx}`}
+                    className={cn(
+                      "flex items-center w-full",
+                      item.selected ? "bg-gray-100 rounded-md" : ""
+                    )}
+                  >
+                    <TooltipProvider>
+                      <Tooltip delayDuration={200}>
+                        <TooltipTrigger asChild>
+                          <SidebarMenuButton
+                            onClick={() => changeAgentInbox(item.id, true)}
+                          >
+                            {isDeployed ? (
+                              <UploadCloud className="w-4 h-4 text-blue-500" />
+                            ) : (
+                              <House className="w-4 h-4 text-green-500" />
+                            )}
+                            <span
+                              className={cn(
+                                "truncate min-w-0 text-sm",
+                                item.selected ? "text-black font-medium" : "text-gray-600"
                               )}
-                              <span
-                                className={cn(
-                                  "truncate min-w-0 font-medium",
-                                  item.selected ? "text-black" : "text-gray-600"
-                                )}
-                              >
-                                {label}
-                              </span>
-                            </SidebarMenuButton>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            {label} - {isDeployed ? "Deployed" : "Local"}
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
+                            >
+                              {label}
+                            </span>
+                          </SidebarMenuButton>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          {label} - {isDeployed ? "Deployed" : "Local"}
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
 
-                      <DropdownDialogMenu
-                        item={item}
-                        deleteAgentInbox={deleteAgentInbox}
-                      />
-                    </SidebarMenuItem>
-                  );
-                })}
-                <AddAgentInboxDialog
-                  hideTrigger={false}
-                  langchainApiKey={langchainApiKey}
-                  handleChangeLangChainApiKey={handleChangeLangChainApiKey}
-                />
-              </div>
-
-              <div className="flex flex-col gap-3 pl-7">
-                <NextLink href="/chat">
-                  <PillButton
-                    variant="outline"
-                    className="flex gap-2 items-center justify-center text-gray-800"
-                    size="lg"
-                  >
-                    <MessageSquare className="w-5 h-5" />
-                    <span>Chat</span>
-                  </PillButton>
-                </NextLink>
-                <SettingsPopover />
-                <NextLink
-                  href={AGENT_INBOX_GITHUB_README_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <PillButton
-                    variant="outline"
-                    className="flex gap-2 items-center justify-center text-gray-800"
-                    size="lg"
-                  >
-                    <FileText />
-                    <span>Documentation</span>
-                  </PillButton>
-                </NextLink>
-              </div>
+                    <DropdownDialogMenu
+                      item={item}
+                      deleteAgentInbox={deleteAgentInbox}
+                    />
+                  </SidebarMenuItem>
+                );
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {/* Threads Section */}
+        <SidebarGroup className="flex-1 pt-4 px-2 overflow-hidden flex flex-col">
+          <div className="flex items-center justify-between px-2 mb-2">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              Threads
+            </p>
+            <button
+              onClick={handleNewChat}
+              className="p-1 hover:bg-gray-200 rounded transition-colors"
+            >
+              <Plus className="h-4 w-4 text-gray-500" />
+            </button>
+          </div>
+          <SidebarGroupContent className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+            {chatThreadsLoading ? (
+              <div className="flex items-center justify-center py-6 text-gray-400">
+                <LoaderCircle className="w-4 h-4 animate-spin mr-2" />
+                <p className="text-xs">Loading...</p>
+              </div>
+            ) : chatThreads.length === 0 ? (
+              <div className="px-2 py-4 text-center text-sm text-gray-500">
+                No conversations yet
+              </div>
+            ) : (
+              <div className="space-y-3 px-1">
+                {Object.entries(groupedThreads).map(([date, dateThreads]) => (
+                  <div key={date}>
+                    <div className="px-2 py-1 text-xs font-semibold text-gray-500 uppercase">
+                      {date}
+                    </div>
+                    <div className="space-y-1">
+                      {dateThreads.map((thread) => {
+                        const title = getThreadTitle(thread);
+                        return (
+                          <div
+                            key={thread.thread_id}
+                            className={cn(
+                              "group flex items-center rounded-lg transition-colors",
+                              "hover:bg-gray-100",
+                              currentChatThreadId === thread.thread_id &&
+                                "bg-gray-100"
+                            )}
+                          >
+                            <button
+                              onClick={() => handleSelectThread(thread.thread_id)}
+                              className={cn(
+                                "flex-1 text-left px-3 py-2 text-sm flex items-center gap-2 min-w-0",
+                                currentChatThreadId === thread.thread_id &&
+                                  "font-medium"
+                              )}
+                            >
+                              <MessageSquare className="h-4 w-4 flex-shrink-0 text-gray-400" />
+                              <span className="truncate">{title}</span>
+                            </button>
+                            <div className="pr-2">
+                              <ThreadActionsMenu
+                                thread={thread}
+                                currentTitle={title}
+                                onRename={renameThread}
+                                onDelete={deleteChatThread}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* Bottom Actions */}
+        <div className="flex gap-2 px-4 pt-2 border-t border-gray-200">
+          <SettingsPopover />
+          <NextLink
+            href={AGENT_INBOX_GITHUB_README_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex-1"
+          >
+            <PillButton
+              variant="outline"
+              className="flex gap-2 items-center justify-center text-gray-800 w-full"
+              size="sm"
+            >
+              <FileText className="w-4 h-4" />
+              <span>Docs</span>
+            </PillButton>
+          </NextLink>
+        </div>
       </SidebarContent>
     </Sidebar>
   );
@@ -190,8 +347,6 @@ export function AppSidebarTrigger({
   const { toggleSidebar, open } = useSidebar();
 
   if (isOutside && open) {
-    // If this component is being rendered outside the sidebar view, then do not render if open.
-    // This way we can render the trigger inside the main view when open.
     return null;
   }
 
