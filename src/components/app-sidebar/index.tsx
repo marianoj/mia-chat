@@ -344,10 +344,22 @@ export function AppSidebarTrigger({
   isOutside: boolean;
   className?: string;
 }) {
-  const { toggleSidebar, open } = useSidebar();
+  const { toggleSidebar, open, isMobile, openMobile } = useSidebar();
 
-  if (isOutside && open) {
-    return null;
+  // On mobile, always show the trigger when sidebar sheet is closed
+  // On desktop, hide the outside trigger when sidebar is open
+  if (isOutside) {
+    if (isMobile) {
+      // On mobile, hide trigger when sheet is open
+      if (openMobile) {
+        return null;
+      }
+    } else {
+      // On desktop, hide trigger when sidebar is open
+      if (open) {
+        return null;
+      }
+    }
   }
 
   return (

@@ -117,7 +117,7 @@ export function BreadCrumb({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        "flex items-center justify-start gap-2 text-gray-500 text-sm",
+        "flex items-center justify-start gap-1 sm:gap-2 text-gray-500 text-xs sm:text-sm overflow-x-auto scrollbar-none whitespace-nowrap",
         className
       )}
     >

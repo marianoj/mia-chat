@@ -49,13 +49,22 @@ export default function RootLayout({
           <ThreadsProvider>
             <SidebarProvider>
               <AppSidebar />
-              <main className="flex flex-row w-full min-h-full pt-6 pl-6 gap-6">
-                <AppSidebarTrigger isOutside={true} />
-                <div className="flex flex-col gap-6 w-full min-h-full">
-                  <BreadCrumb className="pl-5" />
+              <main className="flex flex-row w-full min-h-full pt-4 pl-4 gap-4 md:pt-6 md:pl-6 md:gap-6">
+                {/* Desktop only: sidebar trigger as flex item */}
+                <div className="hidden md:block">
+                  <AppSidebarTrigger isOutside={true} />
+                </div>
+                <div className="flex flex-col gap-4 md:gap-6 w-full min-h-full">
+                  {/* Mobile: trigger inline with breadcrumb */}
+                  <div className="flex items-center gap-2">
+                    <div className="md:hidden">
+                      <AppSidebarTrigger isOutside={true} />
+                    </div>
+                    <BreadCrumb className="pl-0 md:pl-5" />
+                  </div>
                   <div
                     className={cn(
-                      "h-full bg-white rounded-tl-[58px]",
+                      "h-full bg-white rounded-tl-[32px] md:rounded-tl-[58px]",
                       "overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100"
                     )}
                   >

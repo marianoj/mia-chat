@@ -64,24 +64,25 @@ export const InterruptedInboxItem = <ThreadValues extends Record<string, any>>({
       key={threadData.thread.thread_id}
       onClick={handleThreadClick}
       className={cn(
-        "grid grid-cols-12 w-full p-4 items-center cursor-pointer hover:bg-gray-50/90 transition-colors ease-in-out h-[71px]",
+        "flex flex-col sm:grid sm:grid-cols-12 w-full p-3 sm:p-4 gap-2 sm:gap-0 sm:items-center cursor-pointer hover:bg-gray-50/90 transition-colors ease-in-out min-h-[71px]",
         !isLast && "border-b border-gray-200"
       )}
     >
-      {/* Column 1: Dot - adjusted span slightly */}
-      <div className="col-span-1 flex justify-center">
+      {/* Mobile: Title row with dot, Desktop: Column 1 - Dot */}
+      <div className="hidden sm:flex col-span-1 justify-center">
         <div className="w-[6px] h-[6px] rounded-full bg-blue-400" />
       </div>
 
-      {/* Column 2-9: Title and Description - merged spans */}
-      <div className="col-span-8 overflow-hidden">
-        <div className="flex items-center">
-          <span className="text-sm font-semibold text-black truncate pr-1">
+      {/* Title and Description */}
+      <div className="sm:col-span-8 overflow-hidden">
+        <div className="flex items-center gap-2">
+          <div className="w-[6px] h-[6px] rounded-full bg-blue-400 flex-shrink-0 sm:hidden" />
+          <span className="text-sm font-semibold text-black truncate">
             {title}
           </span>
 
           {threadData.invalidSchema && (
-            <div className="ml-2">
+            <div className="flex-shrink-0">
               <ThreadIdCopyable
                 showUUID
                 threadId={threadData.thread.thread_id}
@@ -90,7 +91,7 @@ export const InterruptedInboxItem = <ThreadValues extends Record<string, any>>({
           )}
         </div>
         {hasDescriptionValue && (
-          <div className="text-sm text-muted-foreground truncate h-[18px]">
+          <div className="text-sm text-muted-foreground truncate h-[18px] pl-[14px] sm:pl-0">
             {descriptionPreview}
             {descriptionTruncated && "..."}
             {!firstInterrupt && threadData.invalidSchema && (
@@ -101,17 +102,20 @@ export const InterruptedInboxItem = <ThreadValues extends Record<string, any>>({
         )}
       </div>
 
-      {/* Column 10: Statuses - adjusted span */}
-      <div className="col-span-1">
-        {firstInterrupt?.config && (
-          <InboxItemStatuses config={firstInterrupt.config} />
-        )}
-      </div>
+      {/* Mobile: Bottom row with status and timestamp */}
+      <div className="flex items-center justify-between pl-[14px] sm:pl-0 sm:contents">
+        {/* Statuses */}
+        <div className="sm:col-span-1">
+          {firstInterrupt?.config && (
+            <InboxItemStatuses config={firstInterrupt.config} />
+          )}
+        </div>
 
-      {/* Column 11-12: Timestamp - adjusted span */}
-      <p className="col-span-2 text-right text-sm text-gray-600 font-light">
-        {updatedAtDateString}
-      </p>
+        {/* Timestamp */}
+        <p className="sm:col-span-2 text-right text-xs sm:text-sm text-gray-600 font-light">
+          {updatedAtDateString}
+        </p>
+      </div>
     </div>
   );
 };

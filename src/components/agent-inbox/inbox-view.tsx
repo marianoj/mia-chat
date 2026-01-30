@@ -186,8 +186,8 @@ export function AgentInboxView<
   };
 
   return (
-    <div ref={containerRef} className="min-w-[1000px] h-full overflow-y-auto">
-      <div className="pl-5 pt-4">
+    <div ref={containerRef} className="w-full h-full overflow-y-auto overflow-x-auto">
+      <div className="pl-3 pt-3 md:pl-5 md:pt-4">
         <BackfillBanner />
         <InboxButtons changeInbox={changeInbox} />
       </div>
@@ -222,7 +222,7 @@ export function AgentInboxView<
           </div>
         )}
       </div>
-      <div className="flex justify-start w-full p-5">
+      <div className="flex justify-start w-full p-3 md:p-5">
         <Pagination />
       </div>
     </div>

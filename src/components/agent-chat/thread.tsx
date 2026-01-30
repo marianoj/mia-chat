@@ -249,44 +249,49 @@ export function ChatThread() {
               className="field-sizing-content resize-none border-none bg-transparent p-3.5 pb-0 shadow-none ring-0 outline-none focus:ring-0 focus:outline-none"
             />
 
-            <div className="flex items-center gap-6 p-2 pt-4">
-              <div className="flex items-center space-x-2">
-                <Switch
-                  id="hide-tool-calls"
-                  checked={!showToolCalls}
-                  onCheckedChange={(checked) => setShowToolCalls(!checked)}
-                />
-                <Label
-                  htmlFor="hide-tool-calls"
-                  className="text-sm text-gray-600"
-                >
-                  Hide Tool Calls
-                </Label>
-              </div>
+            <div className="flex flex-col gap-3 p-2 pt-4 sm:flex-row sm:items-center sm:gap-6">
+              <div className="flex items-center justify-between gap-4 sm:gap-6">
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="hide-tool-calls"
+                    checked={!showToolCalls}
+                    onCheckedChange={(checked) => setShowToolCalls(!checked)}
+                  />
+                  <Label
+                    htmlFor="hide-tool-calls"
+                    className="text-sm text-gray-600 whitespace-nowrap"
+                  >
+                    Hide Tool Calls
+                  </Label>
+                </div>
 
-              <Label
-                htmlFor="file-input"
-                className="flex cursor-pointer items-center gap-2"
-              >
-                <Plus className="size-5 text-gray-600" />
-                <span className="text-sm text-gray-600">
-                  Upload PDF or Image
-                </span>
-              </Label>
-              <input
-                id="file-input"
-                type="file"
-                onChange={handleFileUpload}
-                multiple
-                accept={SUPPORTED_FILE_TYPES.join(",")}
-                className="hidden"
-              />
+                <Label
+                  htmlFor="file-input"
+                  className="flex cursor-pointer items-center gap-2"
+                >
+                  <Plus className="size-5 text-gray-600" />
+                  <span className="text-sm text-gray-600 hidden sm:inline">
+                    Upload PDF or Image
+                  </span>
+                  <span className="text-sm text-gray-600 sm:hidden">
+                    Upload
+                  </span>
+                </Label>
+                <input
+                  id="file-input"
+                  type="file"
+                  onChange={handleFileUpload}
+                  multiple
+                  accept={SUPPORTED_FILE_TYPES.join(",")}
+                  className="hidden"
+                />
+              </div>
 
               {isLoading ? (
                 <Button
                   key="stop"
                   onClick={() => stop()}
-                  className="ml-auto"
+                  className="w-full sm:w-auto sm:ml-auto"
                 >
                   <LoaderCircle className="h-4 w-4 animate-spin" />
                   Cancel
@@ -294,7 +299,7 @@ export function ChatThread() {
               ) : (
                 <Button
                   type="submit"
-                  className="ml-auto shadow-md transition-all"
+                  className="w-full sm:w-auto sm:ml-auto shadow-md transition-all"
                   disabled={!inputValue.trim() && contentBlocks.length === 0}
                 >
                   Send

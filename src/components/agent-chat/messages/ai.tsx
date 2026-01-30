@@ -354,7 +354,7 @@ export function AIMessage({ message, cachedToolCalls, getToolResult, isStreaming
 
     return (
       <div className="flex justify-start">
-        <div className="max-w-[80%]">
+        <div className="w-full">
           <ToolResult message={message} />
         </div>
       </div>
@@ -362,8 +362,8 @@ export function AIMessage({ message, cachedToolCalls, getToolResult, isStreaming
   }
 
   return (
-    <div className="flex justify-start">
-      <div className={cn("flex flex-col gap-2 max-w-[80%]")}>
+    <div className="flex justify-start w-full">
+      <div className={cn("flex flex-col gap-2 w-full")}>
         {contentString && (
           <div className="bg-gray-100 rounded-2xl px-4 py-2">
             <MarkdownText>{contentString}</MarkdownText>

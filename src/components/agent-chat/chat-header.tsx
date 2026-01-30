@@ -64,9 +64,9 @@ export function ChatHeader() {
   ).length;
 
   return (
-    <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-white">
+    <div className="flex items-center justify-between px-3 sm:px-4 py-2 sm:py-3 border-b border-gray-200 bg-white">
       {/* Left: Agent info and thread title */}
-      <div className="flex items-center gap-3 min-w-0">
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
         {/* Agent badge */}
         <div className="flex items-center gap-1.5 flex-shrink-0">
           {isDeployed ? (
@@ -74,20 +74,20 @@ export function ChatHeader() {
           ) : (
             <House className="w-4 h-4 text-green-500" />
           )}
-          <span className="text-sm font-medium text-gray-700">{agentName}</span>
+          <span className="text-xs sm:text-sm font-medium text-gray-700 hidden sm:inline">{agentName}</span>
         </div>
 
-        {/* Separator */}
-        <span className="text-gray-300">/</span>
+        {/* Separator - hidden on mobile */}
+        <span className="text-gray-300 hidden sm:inline">/</span>
 
         {/* Thread title or "New Chat" */}
         <div className="flex items-center gap-2 min-w-0">
           {threadTitle ? (
-            <span className="text-sm text-gray-900 truncate max-w-[300px]">
+            <span className="text-xs sm:text-sm text-gray-900 truncate max-w-[150px] sm:max-w-[300px]">
               {threadTitle}
             </span>
           ) : (
-            <span className="text-sm text-gray-500 italic">New Chat</span>
+            <span className="text-xs sm:text-sm text-gray-500 italic">New Chat</span>
           )}
 
           {/* Loading indicator */}
@@ -98,18 +98,18 @@ export function ChatHeader() {
       </div>
 
       {/* Right: Metrics */}
-      <div className="flex items-center gap-4 text-sm text-gray-500 flex-shrink-0">
-        {/* Message count */}
+      <div className="flex items-center gap-2 sm:gap-4 text-sm text-gray-500 flex-shrink-0">
+        {/* Message count - hidden on small screens */}
         {visibleMessageCount > 0 && (
-          <div className="flex items-center gap-1.5">
+          <div className="hidden sm:flex items-center gap-1.5">
             <MessageSquare className="w-4 h-4" />
             <span>{visibleMessageCount}</span>
           </div>
         )}
 
-        {/* Thread date */}
+        {/* Thread date - hidden on small screens */}
         {threadCreatedAt && (
-          <span className={cn("text-xs", isLoading && "opacity-50")}>
+          <span className={cn("text-xs hidden sm:inline", isLoading && "opacity-50")}>
             {formatRelativeDate(threadCreatedAt)}
           </span>
         )}

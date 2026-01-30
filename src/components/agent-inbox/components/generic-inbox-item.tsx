@@ -96,49 +96,54 @@ export function GenericInboxItem<
         )
       }
       className={cn(
-        "grid grid-cols-12 w-full p-4 py-4.5 cursor-pointer hover:bg-gray-50/90 transition-colors ease-in-out h-[71px]",
+        "flex flex-col sm:grid sm:grid-cols-12 w-full p-3 sm:p-4 gap-2 sm:gap-0 cursor-pointer hover:bg-gray-50/90 transition-colors ease-in-out min-h-[71px]",
         !isLast && "border-b-[1px] border-gray-200"
       )}
     >
-      <div className="col-span-1 flex justify-center items-center">
+      {/* Desktop spacer */}
+      <div className="hidden sm:flex col-span-1 justify-center items-center">
         {/* Empty space for alignment with interrupted items */}
       </div>
 
+      {/* Thread ID row */}
       <div
         className={cn(
-          "col-span-6 flex items-center justify-start gap-2",
-          !selectedInbox && "col-span-9"
+          "sm:col-span-6 flex items-center justify-start gap-2 flex-wrap",
+          !selectedInbox && "sm:col-span-9"
         )}
       >
         <p className="text-sm font-semibold text-black">Thread ID:</p>
         <ThreadIdCopyable showUUID threadId={threadData.thread.thread_id} />
       </div>
 
-      {selectedInbox && (
-        <div className="col-span-2 flex items-center">
-          <Button
-            size="sm"
-            variant="outline"
-            className="flex items-center gap-1 bg-white"
-            onClick={handleOpenInStudio}
-          >
-            Studio
-          </Button>
-        </div>
-      )}
-
-      <div
-        className={cn(
-          "col-span-2 flex items-center",
-          !selectedInbox && "col-start-10"
+      {/* Mobile: Bottom row with Studio button, status, and timestamp */}
+      <div className="flex items-center justify-between gap-2 sm:contents">
+        {selectedInbox && (
+          <div className="sm:col-span-2 flex items-center">
+            <Button
+              size="sm"
+              variant="outline"
+              className="flex items-center gap-1 bg-white text-xs sm:text-sm"
+              onClick={handleOpenInStudio}
+            >
+              Studio
+            </Button>
+          </div>
         )}
-      >
-        <InboxItemStatuses status={threadData.status} />
-      </div>
 
-      <p className="col-span-1 text-right text-sm text-gray-600 font-light pt-2">
-        {updatedAtDateString}
-      </p>
+        <div
+          className={cn(
+            "sm:col-span-2 flex items-center",
+            !selectedInbox && "sm:col-start-10"
+          )}
+        >
+          <InboxItemStatuses status={threadData.status} />
+        </div>
+
+        <p className="sm:col-span-1 text-right text-xs sm:text-sm text-gray-600 font-light sm:pt-2">
+          {updatedAtDateString}
+        </p>
+      </div>
     </div>
   );
 }

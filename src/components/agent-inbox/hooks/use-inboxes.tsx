@@ -8,6 +8,7 @@ import {
   OFFSET_PARAM,
   LIMIT_PARAM,
   INBOX_PARAM,
+  LANGCHAIN_API_KEY_LOCAL_STORAGE_KEY,
 } from "../constants";
 import { useLocalStorage } from "./use-local-storage";
 import { useState, useCallback, useEffect, useRef } from "react";
@@ -15,6 +16,11 @@ import { AgentInbox } from "../types";
 import { useRouter } from "next/navigation";
 import { logger } from "../utils/logger";
 import { runInboxBackfill } from "../utils/backfill";
+
+// Environment variable defaults for deployment
+const DEFAULT_DEPLOYMENT_URL = process.env.NEXT_PUBLIC_API_URL;
+const DEFAULT_ASSISTANT_ID = process.env.NEXT_PUBLIC_ASSISTANT_ID;
+const DEFAULT_LANGSMITH_API_KEY = process.env.NEXT_PUBLIC_LANGSMITH_API_KEY;
 
 /**
  * Hook for managing agent inboxes
@@ -37,34 +43,94 @@ export function useInboxes() {
   const initialLoadComplete = useRef(false);
 
   /**
+   * Check if environment variables are configured
+   */
+  const hasEnvConfig = Boolean(DEFAULT_DEPLOYMENT_URL && DEFAULT_ASSISTANT_ID);
+
+  /**
+   * Create inbox from environment variables (always uses env vars as source of truth)
+   */
+  const createInboxFromEnv = useCallback((): AgentInbox | null => {
+    if (!DEFAULT_DEPLOYMENT_URL || !DEFAULT_ASSISTANT_ID) {
+      return null;
+    }
+
+    logger.log("Using inbox configuration from environment variables", {
+      deploymentUrl: DEFAULT_DEPLOYMENT_URL,
+      assistantId: DEFAULT_ASSISTANT_ID,
+    });
+
+    // Use a stable ID based on the env config so it doesn't change on each load
+    const stableId = `env-${DEFAULT_ASSISTANT_ID}`;
+
+    const envInbox: AgentInbox = {
+      id: stableId,
+      graphId: DEFAULT_ASSISTANT_ID,
+      deploymentUrl: DEFAULT_DEPLOYMENT_URL,
+      name: DEFAULT_ASSISTANT_ID,
+      selected: true,
+      createdAt: new Date().toISOString(),
+    };
+
+    // Also set the API key if provided via env
+    if (DEFAULT_LANGSMITH_API_KEY) {
+      setItem(LANGCHAIN_API_KEY_LOCAL_STORAGE_KEY, DEFAULT_LANGSMITH_API_KEY);
+      logger.log("Set LangSmith API key from environment");
+    }
+
+    return envInbox;
+  }, [setItem]);
+
+  /**
    * Run backfill and load initial inboxes on mount
    */
   useEffect(() => {
     if (typeof window === "undefined") {
       return;
     }
+
     const initializeInboxes = async () => {
+      // If env vars are configured, ALWAYS use them (ignore localStorage)
+      if (hasEnvConfig) {
+        const envInbox = createInboxFromEnv();
+        if (envInbox) {
+          const inboxes = [envInbox];
+          setAgentInboxes(inboxes);
+          setItem(AGENT_INBOXES_LOCAL_STORAGE_KEY, JSON.stringify(inboxes));
+          logger.log("Using environment variable configuration (source of truth)");
+          // Set up URL params for the inbox
+          updateQueryParams(
+            [AGENT_INBOX_PARAM, OFFSET_PARAM, LIMIT_PARAM, INBOX_PARAM],
+            [envInbox.id, "0", "10", "interrupted"]
+          );
+          return;
+        }
+      }
+
+      // No env vars configured - fall back to localStorage behavior
       try {
         // Run the backfill process first
         const backfillResult = await runInboxBackfill();
         if (backfillResult.success) {
-          // Set the state with potentially updated inboxes from backfill
-          setAgentInboxes(backfillResult.updatedInboxes);
-          logger.log(
-            "Initialized inboxes state after backfill:",
-            backfillResult.updatedInboxes
-          );
-          // Now trigger the selection logic based on current URL param
-          // This reuses the logic to select based on param or default
-          getAgentInboxes(backfillResult.updatedInboxes);
+          if (backfillResult.updatedInboxes.length > 0) {
+            setAgentInboxes(backfillResult.updatedInboxes);
+            logger.log(
+              "Initialized inboxes state after backfill:",
+              backfillResult.updatedInboxes
+            );
+            getAgentInboxes(backfillResult.updatedInboxes);
+          } else {
+            // No inboxes found and no env vars - show add inbox dialog
+            logger.log("No inbox configuration available, showing add dialog");
+            setAgentInboxes([]);
+            updateQueryParams(NO_INBOXES_FOUND_PARAM, "true");
+          }
         } else {
-          // If backfill failed, try a normal load
           logger.error("Backfill failed, attempting normal inbox load");
           getAgentInboxes();
         }
       } catch (e) {
         logger.error("Error during initial inbox loading and backfill", e);
-        // Attempt normal load as fallback
         getAgentInboxes();
       }
     };
@@ -76,10 +142,16 @@ export function useInboxes() {
   /**
    * Load agent inboxes from local storage and set up proper selection state
    * Accepts optional preloaded inboxes to avoid re-reading localStorage immediately after backfill.
+   * NOTE: This is only called when env vars are NOT configured (localStorage fallback mode)
    */
   const getAgentInboxes = useCallback(
     async (preloadedInboxes?: AgentInbox[]) => {
       if (typeof window === "undefined") {
+        return;
+      }
+
+      // If env vars are configured, don't use this function (handled in useEffect)
+      if (hasEnvConfig) {
         return;
       }
 
@@ -101,7 +173,6 @@ export function useInboxes() {
               "Error parsing agent inboxes for selection logic",
               error
             );
-            // Handle error state appropriately
             setAgentInboxes([]);
             updateQueryParams(NO_INBOXES_FOUND_PARAM, "true");
             return;
@@ -213,6 +284,7 @@ export function useInboxes() {
       getItem,
       agentInboxes, // Include agentInboxes state to compare against
       updateQueryParams,
+      hasEnvConfig,
     ]
   );
 

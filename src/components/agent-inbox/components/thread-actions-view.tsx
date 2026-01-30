@@ -262,7 +262,7 @@ export function ThreadActionsView<
   if (threadData.invalidSchema) {
     return (
       <div className="flex flex-col min-h-full w-full">
-        <div className="p-12 gap-9 flex flex-col w-full">
+        <div className="p-4 sm:p-8 lg:p-12 gap-6 sm:gap-9 flex flex-col w-full">
           {/* Header (minimal) */}
           <div className="flex flex-wrap items-center justify-between w-full gap-3">
             <div className="flex items-center justify-start gap-3">
@@ -276,7 +276,7 @@ export function ThreadActionsView<
                 <ArrowLeft className="w-5 h-5" />
               </TooltipIconButton>
               <div className="flex items-center gap-2">
-                <p className="text-2xl tracking-tighter text-pretty">
+                <p className="text-lg sm:text-xl lg:text-2xl tracking-tighter text-pretty">
                   {threadTitle}
                 </p>
               </div>
@@ -336,7 +336,7 @@ export function ThreadActionsView<
     threadData.interrupts.length === 0
   ) {
     return (
-      <div className="flex flex-col min-h-full w-full p-12 gap-9">
+      <div className="flex flex-col min-h-full w-full p-4 sm:p-8 lg:p-12 gap-6 sm:gap-9">
         {/* Header */}
         <div className="flex flex-wrap items-center justify-between w-full gap-3">
           <div className="flex items-center justify-start gap-3">
@@ -355,7 +355,7 @@ export function ThreadActionsView<
                 <AlertCircle className="w-4 h-4 text-yellow-600" />
               )}{" "}
               {/* Icon for valid interrupt */}
-              <p className="text-2xl tracking-tighter text-pretty">
+              <p className="text-lg sm:text-xl lg:text-2xl tracking-tighter text-pretty">
                 {threadTitle}
               </p>
             </div>
@@ -419,7 +419,7 @@ export function ThreadActionsView<
           <div className="flex flex-col gap-3 p-4 border border-gray-200 rounded-md bg-gray-50">
             <h3 className="font-medium">Thread Details</h3>
 
-            <div className="grid grid-cols-2 gap-2 text-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
               <div>
                 <span className="font-medium text-gray-700">Status:</span>
                 <span className="ml-2 capitalize">{threadData.status}</span>
@@ -460,7 +460,7 @@ export function ThreadActionsView<
   // Handle Valid Interrupted Threads
   //////////////////////////////////////////////////////////
   return (
-    <div className="flex flex-col min-h-full w-full p-12 gap-9">
+    <div className="flex flex-col min-h-full w-full p-4 sm:p-8 lg:p-12 gap-6 sm:gap-9">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between w-full gap-3">
         <div className="flex items-center justify-start gap-3">
@@ -475,7 +475,7 @@ export function ThreadActionsView<
           </TooltipIconButton>
           <div className="flex items-center gap-2">
             <AlertCircle className="w-4 h-4 text-yellow-600" />
-            <p className="text-2xl tracking-tighter text-pretty">
+            <p className="text-lg sm:text-xl lg:text-2xl tracking-tighter text-pretty">
               {threadTitle}
             </p>
           </div>

@@ -183,20 +183,27 @@ const ChatStreamSession = ({
     },
   });
 
-  // Merge incoming messages from stream with our local state
+  // Clear messages when thread changes
   useEffect(() => {
-    // Reset merged messages when thread changes
     if (threadId !== lastThreadIdForMessages.current) {
       lastThreadIdForMessages.current = threadId;
-      setMergedMessages(streamValue.messages);
-      return;
+      setMergedMessages([]);
     }
+  }, [threadId]);
 
-    // Merge new messages with existing, preserving tool calls
+  // Merge incoming messages from stream with our local state
+  useEffect(() => {
     if (streamValue.messages.length > 0) {
-      setMergedMessages(prev => mergeMessages(prev, streamValue.messages));
+      setMergedMessages(prev => {
+        // If empty (just switched threads), use fresh messages
+        if (prev.length === 0) {
+          return streamValue.messages;
+        }
+        // Otherwise merge to preserve tool calls
+        return mergeMessages(prev, streamValue.messages);
+      });
     }
-  }, [streamValue.messages, threadId]);
+  }, [streamValue.messages]);
 
   useEffect(() => {
     checkGraphStatus(apiUrl, apiKey).then((ok) => {
