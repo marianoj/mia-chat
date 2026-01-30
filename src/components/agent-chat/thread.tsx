@@ -181,6 +181,7 @@ export function ChatThread() {
                     message={message}
                     cachedToolCalls={toolCallTracker.getToolCallsForMessage(message.id || "")}
                     getToolResult={toolCallTracker.getToolResult}
+                    isStreaming={isLoading}
                   />
                 );
               })}
@@ -192,6 +193,7 @@ export function ChatThread() {
                     <ToolCallDisplay
                       toolCalls={orphanedToolCalls}
                       getToolResult={toolCallTracker.getToolResult}
+                      isStreaming={isLoading}
                     />
                   </div>
                 </div>

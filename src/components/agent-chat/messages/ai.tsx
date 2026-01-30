@@ -13,14 +13,16 @@ interface AIMessageProps {
   message: Message;
   cachedToolCalls?: TrackedToolCall[];
   getToolResult?: (toolCallId: string) => TrackedToolResult | undefined;
+  isStreaming?: boolean;
 }
 
 interface ToolCallDisplayProps {
   toolCalls: TrackedToolCall[];
   getToolResult?: (toolCallId: string) => TrackedToolResult | undefined;
+  isStreaming?: boolean;
 }
 
-export function ToolCallDisplay({ toolCalls, getToolResult }: ToolCallDisplayProps) {
+export function ToolCallDisplay({ toolCalls, getToolResult, isStreaming = false }: ToolCallDisplayProps) {
   const [expanded, setExpanded] = useState(true); // Default to expanded so they persist visually
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -30,6 +32,21 @@ export function ToolCallDisplay({ toolCalls, getToolResult }: ToolCallDisplayPro
     await navigator.clipboard.writeText(content);
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  // Format arguments for display - show key details inline
+  const formatArgsPreview = (args: Record<string, unknown>): string => {
+    const entries = Object.entries(args);
+    if (entries.length === 0) return "";
+    // Show first 2-3 key-value pairs as preview
+    return entries
+      .slice(0, 3)
+      .map(([k, v]) => {
+        const valueStr = typeof v === 'string' ? v : JSON.stringify(v);
+        const truncated = valueStr.length > 30 ? valueStr.slice(0, 30) + '...' : valueStr;
+        return `${k}: ${truncated}`;
+      })
+      .join(', ');
   };
 
   return (
@@ -60,23 +77,21 @@ export function ToolCallDisplay({ toolCalls, getToolResult }: ToolCallDisplayPro
             const argsJson = tc.args && Object.keys(tc.args).length > 0
               ? JSON.stringify(tc.args, null, 2)
               : null;
+            const argsPreview = tc.args ? formatArgsPreview(tc.args) : null;
             const copyId = tc.id || `tool-${idx}`;
             const result = getToolResult?.(tc.id);
+            // Consider completed if we have a result OR if streaming has stopped
+            const isCompleted = result || !isStreaming;
 
             return (
               <div key={tc.id || idx} className="px-3 py-3">
                 {/* Tool Call Header */}
                 <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-mono text-sm font-semibold text-gray-800 bg-gray-200 px-2 py-0.5 rounded">
                       {tc.name}
                     </span>
-                    {tc.id && (
-                      <span className="text-xs text-gray-400 font-mono">
-                        {tc.id.slice(0, 8)}...
-                      </span>
-                    )}
-                    {result ? (
+                    {isCompleted ? (
                       <span className="flex items-center gap-1 text-xs text-green-600">
                         <CheckCircle2 className="h-3 w-3" />
                         completed
@@ -106,14 +121,23 @@ export function ToolCallDisplay({ toolCalls, getToolResult }: ToolCallDisplayPro
                   )}
                 </div>
 
-                {/* Tool Call Arguments */}
-                {argsJson && (
-                  <div className="mb-2">
-                    <div className="text-xs text-gray-500 mb-1">Arguments:</div>
-                    <pre className="text-xs bg-gray-100 rounded p-3 overflow-x-auto font-mono text-gray-700 max-h-48 overflow-y-auto">
+                {/* Arguments Preview (always shown if available) */}
+                {argsPreview && (
+                  <div className="text-xs text-gray-500 mb-2 font-mono bg-gray-100 px-2 py-1 rounded">
+                    {argsPreview}
+                  </div>
+                )}
+
+                {/* Full Arguments (collapsible) */}
+                {argsJson && Object.keys(tc.args).length > 3 && (
+                  <details className="mb-2">
+                    <summary className="text-xs text-gray-500 cursor-pointer hover:text-gray-700">
+                      Show full arguments
+                    </summary>
+                    <pre className="text-xs bg-gray-100 rounded p-3 overflow-x-auto font-mono text-gray-700 max-h-48 overflow-y-auto mt-1">
                       {argsJson}
                     </pre>
-                  </div>
+                  </details>
                 )}
 
                 {/* Tool Result (inline) */}
@@ -278,7 +302,7 @@ function ToolResult({ message }: ToolResultProps) {
   );
 }
 
-export function AIMessage({ message, cachedToolCalls, getToolResult }: AIMessageProps) {
+export function AIMessage({ message, cachedToolCalls, getToolResult, isStreaming = false }: AIMessageProps) {
   const { showToolCalls } = useChatSettings();
   const contentString = getContentString(message.content);
   const isToolResult = message.type === "tool";
@@ -350,6 +374,7 @@ export function AIMessage({ message, cachedToolCalls, getToolResult }: AIMessage
           <ToolCallDisplay
             toolCalls={toolCalls}
             getToolResult={getToolResult}
+            isStreaming={isStreaming}
           />
         )}
       </div>
