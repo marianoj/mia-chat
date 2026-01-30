@@ -30,6 +30,7 @@ export function AddAgentInboxDialog({
   hideTrigger,
   langchainApiKey,
   handleChangeLangChainApiKey,
+  customTrigger,
 }: {
   /**
    * Whether or not to hide the dialog trigger button.
@@ -39,6 +40,10 @@ export function AddAgentInboxDialog({
   handleChangeLangChainApiKey?: (
     e: React.ChangeEvent<HTMLInputElement>
   ) => void;
+  /**
+   * Custom trigger element to use instead of the default button.
+   */
+  customTrigger?: React.ReactNode;
 }) {
   const { searchParams, updateQueryParams } = useQueryParams();
   const { toast } = useToast();
@@ -185,7 +190,7 @@ export function AddAgentInboxDialog({
     >
       {!hideTrigger && (
         <DialogTrigger asChild>
-          <Button variant="outline">Add Inbox</Button>
+          {customTrigger || <Button variant="outline">Add Inbox</Button>}
         </DialogTrigger>
       )}
       <DialogContent className="sm:max-w-[425px]">

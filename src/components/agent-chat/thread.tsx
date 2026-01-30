@@ -1,16 +1,19 @@
 "use client";
 
-import React, { useRef, useEffect, FormEvent, useState } from "react";
+import React, { FormEvent, useState } from "react";
 import { useChatStreamContext } from "@/providers/ChatStream";
-import { HumanMessage, AIMessage, AIMessageLoading } from "./messages";
+import { HumanMessage, AIMessage, AIMessageLoading, ToolCallDisplay } from "./messages";
 import { DO_NOT_RENDER_ID_PREFIX } from "@/lib/ensure-tool-responses";
 import { useStickToBottomContext } from "use-stick-to-bottom";
 import { cn } from "@/lib/utils";
-import { Send, Paperclip, Square, X, FileIcon, ImageIcon } from "lucide-react";
+import { X, FileIcon, ImageIcon, Plus, LoaderCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { useFileUpload, SUPPORTED_FILE_TYPES } from "@/hooks/use-file-upload";
 import { MultimodalBlock } from "@/lib/multimodal-utils";
+import { useChatSettings } from "./chat-settings-context";
+import { useToolCallTracker } from "./use-tool-call-tracker";
 
 function ContentBlockPreview({
   block,
@@ -59,9 +62,9 @@ export function ChatThread() {
     error,
   } = stream;
 
+  const { showToolCalls, setShowToolCalls } = useChatSettings();
+  const toolCallTracker = useToolCallTracker(messages);
   const [inputValue, setInputValue] = useState("");
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const {
     contentBlocks,
@@ -80,13 +83,12 @@ export function ChatThread() {
     (msg) => !msg.id?.startsWith(DO_NOT_RENDER_ID_PREFIX)
   );
 
-  // Auto-resize textarea
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "auto";
-      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`;
-    }
-  }, [inputValue]);
+  // Find orphaned tool calls - cached tool calls whose parent message is no longer in the array
+  const messageIdsInArray = new Set(filteredMessages.map(m => m.id));
+  const orphanedToolCalls = Array.from(toolCallTracker.toolCallsByMessage.entries())
+    .filter(([msgId]) => !messageIdsInArray.has(msgId))
+    .flatMap(([, calls]) => calls);
+
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -109,7 +111,8 @@ export function ChatThread() {
     submit(
       { messages: [{ type: "human", content }] },
       {
-        streamMode: ["values"],
+        // Let the SDK use its default streaming behavior
+        // The useStream hook's `messages` property handles message updates automatically
         optimisticValues: (prev) => ({
           ...prev,
           messages: [
@@ -125,9 +128,15 @@ export function ChatThread() {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (
+      e.key === "Enter" &&
+      !e.shiftKey &&
+      !e.metaKey &&
+      !e.nativeEvent.isComposing
+    ) {
       e.preventDefault();
-      handleSubmit(e);
+      const form = e.currentTarget.closest("form");
+      form?.requestSubmit();
     }
   };
 
@@ -145,6 +154,7 @@ export function ChatThread() {
           <div className="text-blue-600 font-medium">Drop files here</div>
         </div>
       )}
+
 
       {/* Messages area */}
       <div
@@ -165,8 +175,27 @@ export function ChatThread() {
                 if (message.type === "human") {
                   return <HumanMessage key={message.id} message={message} />;
                 }
-                return <AIMessage key={message.id} message={message} />;
+                return (
+                  <AIMessage
+                    key={message.id}
+                    message={message}
+                    cachedToolCalls={toolCallTracker.getToolCallsForMessage(message.id || "")}
+                    getToolResult={toolCallTracker.getToolResult}
+                  />
+                );
               })}
+
+              {/* Show orphaned tool calls - cached tool calls whose parent message was removed */}
+              {showToolCalls && orphanedToolCalls.length > 0 && (
+                <div className="flex justify-start">
+                  <div className="max-w-[80%]">
+                    <ToolCallDisplay
+                      toolCalls={orphanedToolCalls}
+                      getToolResult={toolCallTracker.getToolResult}
+                    />
+                  </div>
+                </div>
+              )}
 
               {/* Show loading indicator */}
               {isLoading && <AIMessageLoading />}
@@ -183,82 +212,95 @@ export function ChatThread() {
       </div>
 
       {/* Input area */}
-      <div className="border-t bg-white p-4">
-        <form onSubmit={handleSubmit} className="max-w-3xl mx-auto">
-          {/* Content blocks preview */}
-          {contentBlocks.length > 0 && (
-            <div className="flex flex-wrap gap-2 mb-3">
-              {contentBlocks.map((block, idx) => (
-                <ContentBlockPreview
-                  key={idx}
-                  block={block}
-                  onRemove={() => removeBlock(idx)}
-                />
-              ))}
-            </div>
+      <div className="bg-white p-4">
+        <div
+          className={cn(
+            "bg-muted relative z-10 mx-auto w-full max-w-3xl rounded-2xl shadow-xs transition-all",
+            dragOver
+              ? "border-primary border-2 border-dotted"
+              : "border border-solid"
           )}
-
-          <div className="flex items-end gap-2">
-            {/* File upload button */}
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept={SUPPORTED_FILE_TYPES.join(",")}
-              onChange={handleFileUpload}
-              multiple
-              className="hidden"
-            />
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              onClick={() => fileInputRef.current?.click()}
-              className="flex-shrink-0"
-            >
-              <Paperclip className="h-5 w-5" />
-            </Button>
-
-            {/* Text input */}
-            <div className="flex-1 relative">
-              <Textarea
-                ref={textareaRef}
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
-                onKeyDown={handleKeyDown}
-                onPaste={handlePaste}
-                placeholder="Type a message..."
-                className="resize-none min-h-[44px] max-h-[200px] pr-12"
-                rows={1}
-              />
-            </div>
-
-            {/* Send/Stop button */}
-            {isLoading ? (
-              <Button
-                type="button"
-                variant="destructive"
-                size="icon"
-                onClick={() => stop()}
-                className="flex-shrink-0"
-              >
-                <Square className="h-4 w-4" />
-              </Button>
-            ) : (
-              <Button
-                type="submit"
-                size="icon"
-                disabled={!inputValue.trim() && contentBlocks.length === 0}
-                className="flex-shrink-0"
-              >
-                <Send className="h-4 w-4" />
-              </Button>
+        >
+          <form
+            onSubmit={handleSubmit}
+            className="mx-auto grid max-w-3xl grid-rows-[1fr_auto] gap-2"
+          >
+            {/* Content blocks preview */}
+            {contentBlocks.length > 0 && (
+              <div className="flex flex-wrap gap-2 p-3 pb-0">
+                {contentBlocks.map((block, idx) => (
+                  <ContentBlockPreview
+                    key={idx}
+                    block={block}
+                    onRemove={() => removeBlock(idx)}
+                  />
+                ))}
+              </div>
             )}
-          </div>
 
-          <p className="text-xs text-gray-500 mt-2 text-center">
-            Press Enter to send, Shift+Enter for new line
-          </p>
-        </form>
+            <textarea
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
+              placeholder="Type your message..."
+              className="field-sizing-content resize-none border-none bg-transparent p-3.5 pb-0 shadow-none ring-0 outline-none focus:ring-0 focus:outline-none"
+            />
+
+            <div className="flex items-center gap-6 p-2 pt-4">
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="hide-tool-calls"
+                  checked={!showToolCalls}
+                  onCheckedChange={(checked) => setShowToolCalls(!checked)}
+                />
+                <Label
+                  htmlFor="hide-tool-calls"
+                  className="text-sm text-gray-600"
+                >
+                  Hide Tool Calls
+                </Label>
+              </div>
+
+              <Label
+                htmlFor="file-input"
+                className="flex cursor-pointer items-center gap-2"
+              >
+                <Plus className="size-5 text-gray-600" />
+                <span className="text-sm text-gray-600">
+                  Upload PDF or Image
+                </span>
+              </Label>
+              <input
+                id="file-input"
+                type="file"
+                onChange={handleFileUpload}
+                multiple
+                accept={SUPPORTED_FILE_TYPES.join(",")}
+                className="hidden"
+              />
+
+              {isLoading ? (
+                <Button
+                  key="stop"
+                  onClick={() => stop()}
+                  className="ml-auto"
+                >
+                  <LoaderCircle className="h-4 w-4 animate-spin" />
+                  Cancel
+                </Button>
+              ) : (
+                <Button
+                  type="submit"
+                  className="ml-auto shadow-md transition-all"
+                  disabled={!inputValue.trim() && contentBlocks.length === 0}
+                >
+                  Send
+                </Button>
+              )}
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   );

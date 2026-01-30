@@ -1,6 +1,7 @@
 "use client";
 
 import NextLink from "next/link";
+import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ChevronRight } from "lucide-react";
@@ -18,6 +19,7 @@ import React from "react";
 import { logger } from "../utils/logger";
 
 export function BreadCrumb({ className }: { className?: string }) {
+  const pathname = usePathname();
   const { searchParams } = useQueryParams();
   const { threadData, agentInboxes } = useThreadsContext();
   const [agentInboxLabel, setAgentInboxLabel] = React.useState<string>();
@@ -25,7 +27,12 @@ export function BreadCrumb({ className }: { className?: string }) {
   const [selectedThreadActionLabel, setSelectedThreadActionLabel] =
     React.useState<string>();
 
+  const isChatPage = pathname === "/chat";
+
   React.useEffect(() => {
+    // Skip effect on chat page since breadcrumb is hidden
+    if (isChatPage) return;
+
     try {
       const selectedAgentInbox = agentInboxes.find((a) => a.selected);
       if (selectedAgentInbox) {
@@ -66,7 +73,20 @@ export function BreadCrumb({ className }: { className?: string }) {
     } catch (e) {
       logger.error("Error while updating breadcrumb", e);
     }
-  }, [searchParams, agentInboxes, threadData]);
+  }, [searchParams, agentInboxes, threadData, isChatPage]);
+
+  // Hide breadcrumb on /chat page - it has its own ChatHeader
+  if (isChatPage) {
+    return (
+      <div
+        className={cn(
+          "flex items-center justify-start gap-2 text-gray-500 text-sm h-[34px]",
+          className
+        )}
+        aria-hidden="true"
+      />
+    );
+  }
 
   const constructBaseUrl = () => {
     const selectedAgentInbox = agentInboxes.find((a) => a.selected);

@@ -7,12 +7,11 @@ import React, {
   useState,
   useEffect,
   useCallback,
+  useRef,
 } from "react";
 import { useStream } from "@langchain/langgraph-sdk/react";
-import { type Message, type Thread } from "@langchain/langgraph-sdk";
-import { validate } from "uuid";
+import { type Message } from "@langchain/langgraph-sdk";
 import { toast } from "@/hooks/use-toast";
-import { createClient } from "@/lib/client";
 import { useThreadsContext } from "@/components/agent-inbox/contexts/ThreadContext";
 import { LANGCHAIN_API_KEY_LOCAL_STORAGE_KEY } from "@/components/agent-inbox/constants";
 import { useLocalStorage } from "@/components/agent-inbox/hooks/use-local-storage";
@@ -31,9 +30,6 @@ const useTypedStream = useStream<
 type ChatStreamContextType = ReturnType<typeof useTypedStream> & {
   threadId: string | null;
   setThreadId: (id: string | null) => void;
-  chatThreads: Thread[];
-  chatThreadsLoading: boolean;
-  refreshChatThreads: () => Promise<void>;
 };
 
 const ChatStreamContext = createContext<ChatStreamContextType | undefined>(
@@ -63,21 +59,80 @@ async function checkGraphStatus(
   }
 }
 
-function getThreadSearchMetadata(
-  assistantId: string
-): { graph_id: string } | { assistant_id: string } {
-  if (validate(assistantId)) {
-    return { assistant_id: assistantId };
-  } else {
-    return { graph_id: assistantId };
-  }
-}
-
 interface ChatStreamSessionProps {
   children: ReactNode;
   apiKey: string | null;
   apiUrl: string;
   assistantId: string;
+  initialThreadId: string | null;
+  onThreadIdChange: (id: string | null) => void;
+}
+
+// Helper to get content as string for comparison
+function getMessageContentString(content: Message['content']): string {
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) {
+    return content
+      .map(c => (typeof c === 'string' ? c : (c as any).text || JSON.stringify(c)))
+      .join('');
+  }
+  return '';
+}
+
+/**
+ * Merge incoming messages with existing messages, preserving tool calls.
+ * This implements add_messages-style merging: update existing by ID, append new.
+ * Also handles optimistic updates (temp-* IDs) being replaced by real messages.
+ */
+function mergeMessages(existing: Message[], incoming: Message[]): Message[] {
+  // First, filter out temp messages that have been replaced by real ones
+  const filtered = existing.filter(m => {
+    // Keep non-temp messages
+    if (!m.id?.startsWith('temp-')) return true;
+
+    // For temp messages, check if there's a matching real message in incoming
+    const hasRealReplacement = incoming.some(inc =>
+      inc.type === m.type &&
+      !inc.id?.startsWith('temp-') &&
+      // Match by content for human messages
+      (m.type === 'human' && getMessageContentString(m.content) === getMessageContentString(inc.content))
+    );
+
+    // Remove temp message if it has a real replacement
+    return !hasRealReplacement;
+  });
+
+  // Now merge incoming messages
+  const result: Message[] = [...filtered];
+
+  for (const newMsg of incoming) {
+    const existingIdx = result.findIndex(m => m.id === newMsg.id);
+    if (existingIdx >= 0) {
+      // Update existing message, but preserve tool_calls if the new message lost them
+      const existingMsg = result[existingIdx];
+      const existingToolCalls = existingMsg.type === 'ai' && 'tool_calls' in existingMsg
+        ? (existingMsg as any).tool_calls
+        : undefined;
+      const newToolCalls = newMsg.type === 'ai' && 'tool_calls' in newMsg
+        ? (newMsg as any).tool_calls
+        : undefined;
+
+      // If existing had tool_calls but new doesn't, preserve them
+      if (existingToolCalls?.length > 0 && (!newToolCalls || newToolCalls.length === 0)) {
+        result[existingIdx] = {
+          ...newMsg,
+          tool_calls: existingToolCalls,
+        } as Message;
+      } else {
+        result[existingIdx] = newMsg;
+      }
+    } else {
+      // Append new message
+      result.push(newMsg);
+    }
+  }
+
+  return result;
 }
 
 const ChatStreamSession = ({
@@ -85,44 +140,33 @@ const ChatStreamSession = ({
   apiKey,
   apiUrl,
   assistantId,
+  initialThreadId,
+  onThreadIdChange,
 }: ChatStreamSessionProps) => {
-  const [threadId, setThreadId] = useState<string | null>(null);
-  const [chatThreads, setChatThreads] = useState<Thread[]>([]);
-  const [chatThreadsLoading, setChatThreadsLoading] = useState(false);
+  const [threadId, setThreadIdInternal] = useState<string | null>(initialThreadId);
+  const { refreshChatThreads } = useThreadsContext();
 
-  const getChatThreads = useCallback(async (): Promise<Thread[]> => {
-    if (!apiUrl || !assistantId) return [];
-    const client = createClient({
-      deploymentUrl: apiUrl,
-      langchainApiKey: apiKey ?? undefined,
-    });
+  // Track if the change came from external (sidebar) vs internal (stream)
+  const lastExternalThreadId = useRef<string | null>(initialThreadId);
 
-    const threads = await client.threads.search({
-      metadata: {
-        ...getThreadSearchMetadata(assistantId),
-      },
-      limit: 100,
-    });
+  // Merged messages state - preserves tool calls across stream updates
+  const [mergedMessages, setMergedMessages] = useState<Message[]>([]);
+  const lastThreadIdForMessages = useRef<string | null>(null);
 
-    return threads;
-  }, [apiUrl, assistantId, apiKey]);
-
-  const refreshChatThreads = useCallback(async () => {
-    setChatThreadsLoading(true);
-    try {
-      const threads = await getChatThreads();
-      setChatThreads(threads);
-    } catch (e) {
-      console.error("Failed to fetch chat threads:", e);
-    } finally {
-      setChatThreadsLoading(false);
-    }
-  }, [getChatThreads]);
-
-  // Initial load of threads
+  // Only sync when external threadId actually changes (from sidebar click)
   useEffect(() => {
-    refreshChatThreads();
-  }, [refreshChatThreads]);
+    if (initialThreadId !== lastExternalThreadId.current) {
+      lastExternalThreadId.current = initialThreadId;
+      setThreadIdInternal(initialThreadId);
+    }
+  }, [initialThreadId]);
+
+  const setThreadId = useCallback((id: string | null) => {
+    setThreadIdInternal(id);
+    // Update the context but track that this is an internal change
+    lastExternalThreadId.current = id;
+    onThreadIdChange(id);
+  }, [onThreadIdChange]);
 
   const streamValue = useTypedStream({
     apiUrl,
@@ -130,12 +174,29 @@ const ChatStreamSession = ({
     assistantId,
     threadId: threadId ?? null,
     onThreadId: (id) => {
-      setThreadId(id);
-      // Refetch threads list when thread ID changes.
-      // Wait for some seconds before fetching so we're able to get the new thread that was created.
-      sleep().then(() => refreshChatThreads().catch(console.error));
+      // Only update if it's a new thread created by the stream
+      if (id !== threadId) {
+        setThreadId(id);
+        // Refetch threads list when a new thread is created
+        sleep().then(() => refreshChatThreads().catch(console.error));
+      }
     },
   });
+
+  // Merge incoming messages from stream with our local state
+  useEffect(() => {
+    // Reset merged messages when thread changes
+    if (threadId !== lastThreadIdForMessages.current) {
+      lastThreadIdForMessages.current = threadId;
+      setMergedMessages(streamValue.messages);
+      return;
+    }
+
+    // Merge new messages with existing, preserving tool calls
+    if (streamValue.messages.length > 0) {
+      setMergedMessages(prev => mergeMessages(prev, streamValue.messages));
+    }
+  }, [streamValue.messages, threadId]);
 
   useEffect(() => {
     checkGraphStatus(apiUrl, apiKey).then((ok) => {
@@ -150,13 +211,12 @@ const ChatStreamSession = ({
     });
   }, [apiKey, apiUrl]);
 
+  // Override the messages from stream with our merged messages
   const contextValue: ChatStreamContextType = {
     ...streamValue,
+    messages: mergedMessages,
     threadId,
     setThreadId,
-    chatThreads,
-    chatThreadsLoading,
-    refreshChatThreads,
   };
 
   return (
@@ -173,7 +233,7 @@ interface ChatStreamProviderProps {
 export const ChatStreamProvider: React.FC<ChatStreamProviderProps> = ({
   children,
 }) => {
-  const { agentInboxes } = useThreadsContext();
+  const { agentInboxes, currentChatThreadId, setCurrentChatThreadId } = useThreadsContext();
   const { getItem } = useLocalStorage();
 
   // Get the selected inbox configuration
@@ -202,6 +262,8 @@ export const ChatStreamProvider: React.FC<ChatStreamProviderProps> = ({
       apiKey={apiKey}
       apiUrl={apiUrl}
       assistantId={assistantId}
+      initialThreadId={currentChatThreadId}
+      onThreadIdChange={setCurrentChatThreadId}
     >
       {children}
     </ChatStreamSession>

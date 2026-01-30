@@ -392,15 +392,14 @@ export function useInboxes() {
           [id, "0", "10", "interrupted"]
         );
       } else {
-        const url = new URL(window.location.href);
         const newParams = new URLSearchParams({
           [AGENT_INBOX_PARAM]: id,
           [OFFSET_PARAM]: "0",
           [LIMIT_PARAM]: "10",
           [INBOX_PARAM]: "interrupted",
         });
-        const newUrl = url.pathname + "?" + newParams.toString();
-        window.location.href = newUrl;
+        // Always navigate to root to show Agent Inbox screen
+        router.push("/?" + newParams.toString());
       }
     },
     [getItem, setItem, updateQueryParams, router]

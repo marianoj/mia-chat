@@ -1,2 +1,2 @@
 export { HumanMessage } from "./human";
-export { AIMessage, AIMessageLoading } from "./ai";
+export { AIMessage, AIMessageLoading, ToolCallDisplay } from "./ai";
