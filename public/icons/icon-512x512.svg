@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#000000" rx="51.2"/>
+  <text x="256" y="245.76" font-family="system-ui, -apple-system, sans-serif" font-size="76.8" font-weight="bold" fill="white" text-anchor="middle">Agent</text>
+  <text x="256" y="332.8" font-family="system-ui, -apple-system, sans-serif" font-size="76.8" font-weight="bold" fill="white" text-anchor="middle">Inbox</text>
+</svg>
