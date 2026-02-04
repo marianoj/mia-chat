@@ -50,7 +50,8 @@ export function ThreadIdCopyable({
       onClick={(e) => handleCopy(e)}
       variant="ghost"
       tooltip="Copy thread ID"
-      className="flex flex-grow-0 gap-1 items-center p-1 rounded-md border-[1px] cursor-pointer hover:bg-gray-50/90 border-gray-200 w-fit"
+      size={showUUID ? "default" : "icon"}
+      className="flex flex-grow-0 gap-1 items-center p-1 rounded-md border-[1px] cursor-pointer hover:bg-gray-50/90 border-gray-200 w-fit h-auto"
     >
       <p className="font-mono text-xs">{showUUID ? threadId : "ID"}</p>
       <AnimatePresence mode="wait" initial={false}>

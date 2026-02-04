@@ -100,15 +100,10 @@ export function GenericInboxItem<
         !isLast && "border-b-[1px] border-gray-200"
       )}
     >
-      {/* Desktop spacer */}
-      <div className="hidden sm:flex col-span-1 justify-center items-center">
-        {/* Empty space for alignment with interrupted items */}
-      </div>
-
       {/* Thread ID row */}
       <div
         className={cn(
-          "sm:col-span-6 flex items-center justify-start gap-2 flex-wrap",
+          "sm:col-span-7 sm:pl-4 flex items-center justify-start gap-2 flex-wrap",
           !selectedInbox && "sm:col-span-9"
         )}
       >

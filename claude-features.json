@@ -1,0 +1,71 @@
+[
+  {
+    "category": "functional",
+    "description": "Real-time chat interface streams messages from LangGraph",
+    "steps": [
+      "ChatStreamProvider connects to LangGraph SDK",
+      "Messages stream and render in thread view",
+      "User can send messages and receive responses"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "Tool call tracking and visualization in AI messages",
+    "steps": [
+      "useToolCallTracker hook tracks tool invocations",
+      "Tool calls display with arguments in AI messages",
+      "Tool results are shown when available"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "Chat settings context for UI customization",
+    "steps": [
+      "ChatSettingsContext provides user preferences",
+      "Users can toggle tool call visibility",
+      "Settings persist across sessions"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "Multiple agent inboxes with different LangGraph deployments",
+    "steps": [
+      "Add/edit/delete inbox configurations",
+      "Switch between inboxes via sidebar",
+      "Each inbox connects to its own deployment"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "Human-in-the-loop interrupt handling",
+    "steps": [
+      "Display interrupts from running agents",
+      "Support accept/ignore/respond/edit actions",
+      "Send responses back to LangGraph"
+    ],
+    "passes": false
+  },
+  {
+    "category": "ui",
+    "description": "App sidebar with inbox navigation",
+    "steps": [
+      "Sidebar shows all configured inboxes",
+      "Settings popover for API key and inbox management",
+      "Responsive design for mobile"
+    ],
+    "passes": false
+  },
+  {
+    "category": "ui",
+    "description": "Switch component for settings toggles",
+    "steps": [
+      "Radix UI based switch component",
+      "Consistent styling with design system"
+    ],
+    "passes": false
+  }
+]

@@ -1,0 +1,39 @@
+# Claude Progress Log
+# This file tracks agent work across sessions for continuity
+
+## Current Session
+Date: 2026-01-30
+
+### Active Work
+- Chat interface improvements with tool call tracking
+- Settings context for chat UI customization
+- Sidebar and inbox dialog updates
+
+### Recent Changes (from git status)
+Modified:
+- src/components/agent-chat/index.tsx
+- src/components/agent-chat/messages/ai.tsx
+- src/components/agent-chat/thread.tsx
+- src/components/agent-inbox/components/add-agent-inbox-dialog.tsx
+- src/components/agent-inbox/constants.ts
+- src/components/agent-inbox/contexts/ThreadContext.tsx
+- src/components/agent-inbox/hooks/use-inboxes.tsx
+- src/components/app-sidebar/index.tsx
+- src/components/ui/sidebar.tsx
+- src/providers/ChatStream.tsx
+
+New files:
+- src/components/agent-chat/chat-settings-context.tsx
+- src/components/agent-chat/use-tool-call-tracker.ts
+- src/components/ui/switch.tsx
+
+### Decisions Made
+- (none yet this session)
+
+### Blockers / Notes
+- (none yet)
+
+---
+## Session History
+
+(Previous sessions will be logged here)

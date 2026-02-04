@@ -11,13 +11,17 @@ import {
 import { Button, ButtonProps } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-export type TooltipIconButtonProps = ButtonProps & {
+export type TooltipIconButtonProps = Omit<ButtonProps, "size"> & {
   tooltip: string | React.ReactNode;
   side?: "top" | "bottom" | "left" | "right";
   /**
    * @default 700
    */
   delayDuration?: number;
+  /**
+   * @default "icon"
+   */
+  size?: ButtonProps["size"];
 };
 
 export const TooltipIconButton = forwardRef<
@@ -25,7 +29,7 @@ export const TooltipIconButton = forwardRef<
   TooltipIconButtonProps
 >(
   (
-    { children, tooltip, side = "bottom", className, delayDuration, ...rest },
+    { children, tooltip, side = "bottom", className, delayDuration, size = "icon", ...rest },
     ref
   ) => {
     return (
@@ -34,9 +38,9 @@ export const TooltipIconButton = forwardRef<
           <TooltipTrigger asChild>
             <Button
               variant="ghost"
-              size="icon"
+              size={size}
               {...rest}
-              className={cn("size-8 sm:size-6 p-1.5 sm:p-1", className)}
+              className={cn(size === "icon" && "size-8 sm:size-6 p-1.5 sm:p-1", className)}
               ref={ref}
             >
               {children}

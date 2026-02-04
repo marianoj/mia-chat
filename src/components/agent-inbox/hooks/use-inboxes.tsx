@@ -90,15 +90,50 @@ export function useInboxes() {
     }
 
     const initializeInboxes = async () => {
-      // If env vars are configured, ALWAYS use them (ignore localStorage)
+      // If env vars are configured, ensure the env inbox exists but preserve user-added inboxes
       if (hasEnvConfig) {
         const envInbox = createInboxFromEnv();
         if (envInbox) {
-          const inboxes = [envInbox];
-          setAgentInboxes(inboxes);
-          setItem(AGENT_INBOXES_LOCAL_STORAGE_KEY, JSON.stringify(inboxes));
-          logger.log("Using environment variable configuration (source of truth)");
-          // Set up URL params for the inbox
+          // Load existing inboxes from localStorage
+          let existingInboxes: AgentInbox[] = [];
+          const agentInboxesStr = getItem(AGENT_INBOXES_LOCAL_STORAGE_KEY);
+          if (agentInboxesStr && agentInboxesStr !== "[]") {
+            try {
+              existingInboxes = JSON.parse(agentInboxesStr);
+            } catch (error) {
+              logger.error("Error parsing existing inboxes", error);
+            }
+          }
+
+          // Check if env inbox already exists (by stable ID)
+          const envInboxIndex = existingInboxes.findIndex(
+            (inbox) => inbox.id === envInbox.id
+          );
+
+          let mergedInboxes: AgentInbox[];
+          if (envInboxIndex >= 0) {
+            // Update existing env inbox, keep other inboxes
+            mergedInboxes = existingInboxes.map((inbox, index) =>
+              index === envInboxIndex
+                ? { ...envInbox, selected: true }
+                : { ...inbox, selected: false }
+            );
+          } else {
+            // Add env inbox at the beginning, deselect others
+            mergedInboxes = [
+              { ...envInbox, selected: true },
+              ...existingInboxes.map((inbox) => ({ ...inbox, selected: false })),
+            ];
+          }
+
+          setAgentInboxes(mergedInboxes);
+          setItem(AGENT_INBOXES_LOCAL_STORAGE_KEY, JSON.stringify(mergedInboxes));
+          logger.log("Merged environment inbox with existing inboxes", {
+            envInbox: envInbox.id,
+            totalInboxes: mergedInboxes.length,
+          });
+
+          // Set up URL params for the env inbox (default selection)
           updateQueryParams(
             [AGENT_INBOX_PARAM, OFFSET_PARAM, LIMIT_PARAM, INBOX_PARAM],
             [envInbox.id, "0", "10", "interrupted"]

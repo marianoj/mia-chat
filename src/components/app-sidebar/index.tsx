@@ -16,7 +16,6 @@ import {
   UploadCloud,
   House,
   LoaderCircle,
-  MessageSquare,
   Plus,
 } from "lucide-react";
 import { agentInboxSvg } from "../agent-inbox/components/agent-inbox-logo";
@@ -246,7 +245,7 @@ export function AppSidebar() {
                 No conversations yet
               </div>
             ) : (
-              <div className="space-y-3 px-1">
+              <div className="space-y-3">
                 {Object.entries(groupedThreads).map(([date, dateThreads]) => (
                   <div key={date}>
                     <div className="px-2 py-1 text-xs font-semibold text-gray-500 uppercase">
@@ -273,7 +272,6 @@ export function AppSidebar() {
                                   "font-medium"
                               )}
                             >
-                              <MessageSquare className="h-4 w-4 flex-shrink-0 text-gray-400" />
                               <span className="truncate">{title}</span>
                             </button>
                             <div className="pr-2">
@@ -298,21 +296,6 @@ export function AppSidebar() {
         {/* Bottom Actions */}
         <div className="flex gap-2 px-4 pt-2 border-t border-gray-200">
           <SettingsPopover />
-          <NextLink
-            href={AGENT_INBOX_GITHUB_README_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex-1"
-          >
-            <PillButton
-              variant="outline"
-              className="flex gap-2 items-center justify-center text-gray-800 w-full"
-              size="sm"
-            >
-              <FileText className="w-4 h-4" />
-              <span>Docs</span>
-            </PillButton>
-          </NextLink>
         </div>
       </SidebarContent>
     </Sidebar>
