@@ -12,7 +12,6 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import {
-  FileText,
   UploadCloud,
   House,
   LoaderCircle,
@@ -20,17 +19,13 @@ import {
 } from "lucide-react";
 import { agentInboxSvg } from "../agent-inbox/components/agent-inbox-logo";
 import { SettingsPopover } from "../agent-inbox/components/settings-popover";
-import { PillButton } from "../ui/pill-button";
 import React from "react";
 import { useSidebar } from "@/components/ui/sidebar";
 import { TooltipIconButton } from "../ui/assistant-ui/tooltip-icon-button";
 import { useThreadsContext } from "../agent-inbox/contexts/ThreadContext";
 import { prettifyText, isDeployedUrl } from "../agent-inbox/utils";
 import { cn } from "@/lib/utils";
-import {
-  AGENT_INBOX_GITHUB_README_URL,
-  LANGCHAIN_API_KEY_LOCAL_STORAGE_KEY,
-} from "../agent-inbox/constants";
+import { LANGCHAIN_API_KEY_LOCAL_STORAGE_KEY } from "../agent-inbox/constants";
 import {
   Tooltip,
   TooltipContent,
