@@ -8,7 +8,6 @@ import {
   OFFSET_PARAM,
   LIMIT_PARAM,
   INBOX_PARAM,
-  LANGCHAIN_API_KEY_LOCAL_STORAGE_KEY,
 } from "../constants";
 import { useLocalStorage } from "./use-local-storage";
 import { useState, useCallback, useEffect, useRef } from "react";
@@ -23,14 +22,77 @@ const DEFAULT_ASSISTANT_ID = process.env.NEXT_PUBLIC_ASSISTANT_ID;
 const DEFAULT_LANGSMITH_API_KEY = process.env.NEXT_PUBLIC_LANGSMITH_API_KEY;
 
 /**
+ * Parse NEXT_PUBLIC_INBOXES env var (JSON array of inbox configs).
+ * Each entry should have: { graphId, deploymentUrl, name? }
+ */
+function parseEnvInboxes(): AgentInbox[] | null {
+  const raw = process.env.NEXT_PUBLIC_INBOXES;
+  if (!raw) return null;
+
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed) || parsed.length === 0) return null;
+
+    return parsed.map((entry: any, idx: number) => ({
+      id: `env-${entry.graphId}`,
+      graphId: entry.graphId,
+      deploymentUrl: entry.deploymentUrl,
+      name: entry.name || entry.graphId,
+      selected: idx === 0,
+      createdAt: new Date().toISOString(),
+    }));
+  } catch (error) {
+    logger.error("Error parsing NEXT_PUBLIC_INBOXES env var", error);
+    return null;
+  }
+}
+
+/**
+ * Build inboxes from environment variables.
+ * Supports both NEXT_PUBLIC_INBOXES (array) and the legacy
+ * NEXT_PUBLIC_API_URL + NEXT_PUBLIC_ASSISTANT_ID (single inbox).
+ */
+function getEnvInboxes(): AgentInbox[] | null {
+  // Prefer the array format
+  const arrayInboxes = parseEnvInboxes();
+  if (arrayInboxes) return arrayInboxes;
+
+  // Fall back to single inbox from legacy env vars
+  if (DEFAULT_DEPLOYMENT_URL && DEFAULT_ASSISTANT_ID) {
+    return [
+      {
+        id: `env-${DEFAULT_ASSISTANT_ID}`,
+        graphId: DEFAULT_ASSISTANT_ID,
+        deploymentUrl: DEFAULT_DEPLOYMENT_URL,
+        name: DEFAULT_ASSISTANT_ID,
+        selected: true,
+        createdAt: new Date().toISOString(),
+      },
+    ];
+  }
+
+  return null;
+}
+
+/** Whether inboxes are configured via environment variables */
+export const ENV_INBOXES_CONFIGURED = getEnvInboxes() !== null;
+
+/** Whether the API key is configured via environment variables */
+export const ENV_API_KEY_CONFIGURED = Boolean(DEFAULT_LANGSMITH_API_KEY);
+
+/**
+ * Get the API key from environment. Returns null if not set.
+ */
+export function getEnvApiKey(): string | null {
+  return DEFAULT_LANGSMITH_API_KEY || null;
+}
+
+/**
  * Hook for managing agent inboxes
  *
- * Provides functionality to:
- * - Load agent inboxes from local storage
- * - Add new agent inboxes
- * - Delete agent inboxes
- * - Change the selected agent inbox
- * - Update an existing agent inbox
+ * When env vars are configured, inboxes come exclusively from env vars
+ * and are never persisted to localStorage.
+ * When no env vars are set, falls back to localStorage behavior.
  *
  * @returns {Object} Object containing agent inboxes and methods to manage them
  */
@@ -45,41 +107,7 @@ export function useInboxes() {
   /**
    * Check if environment variables are configured
    */
-  const hasEnvConfig = Boolean(DEFAULT_DEPLOYMENT_URL && DEFAULT_ASSISTANT_ID);
-
-  /**
-   * Create inbox from environment variables (always uses env vars as source of truth)
-   */
-  const createInboxFromEnv = useCallback((): AgentInbox | null => {
-    if (!DEFAULT_DEPLOYMENT_URL || !DEFAULT_ASSISTANT_ID) {
-      return null;
-    }
-
-    logger.log("Using inbox configuration from environment variables", {
-      deploymentUrl: DEFAULT_DEPLOYMENT_URL,
-      assistantId: DEFAULT_ASSISTANT_ID,
-    });
-
-    // Use a stable ID based on the env config so it doesn't change on each load
-    const stableId = `env-${DEFAULT_ASSISTANT_ID}`;
-
-    const envInbox: AgentInbox = {
-      id: stableId,
-      graphId: DEFAULT_ASSISTANT_ID,
-      deploymentUrl: DEFAULT_DEPLOYMENT_URL,
-      name: DEFAULT_ASSISTANT_ID,
-      selected: true,
-      createdAt: new Date().toISOString(),
-    };
-
-    // Also set the API key if provided via env
-    if (DEFAULT_LANGSMITH_API_KEY) {
-      setItem(LANGCHAIN_API_KEY_LOCAL_STORAGE_KEY, DEFAULT_LANGSMITH_API_KEY);
-      logger.log("Set LangSmith API key from environment");
-    }
-
-    return envInbox;
-  }, [setItem]);
+  const hasEnvConfig = ENV_INBOXES_CONFIGURED;
 
   /**
    * Run backfill and load initial inboxes on mount
@@ -90,53 +118,22 @@ export function useInboxes() {
     }
 
     const initializeInboxes = async () => {
-      // If env vars are configured, ensure the env inbox exists but preserve user-added inboxes
+      // If env vars are configured, use them exclusively (no localStorage)
       if (hasEnvConfig) {
-        const envInbox = createInboxFromEnv();
-        if (envInbox) {
-          // Load existing inboxes from localStorage
-          let existingInboxes: AgentInbox[] = [];
-          const agentInboxesStr = getItem(AGENT_INBOXES_LOCAL_STORAGE_KEY);
-          if (agentInboxesStr && agentInboxesStr !== "[]") {
-            try {
-              existingInboxes = JSON.parse(agentInboxesStr);
-            } catch (error) {
-              logger.error("Error parsing existing inboxes", error);
-            }
-          }
-
-          // Check if env inbox already exists (by stable ID)
-          const envInboxIndex = existingInboxes.findIndex(
-            (inbox) => inbox.id === envInbox.id
-          );
-
-          let mergedInboxes: AgentInbox[];
-          if (envInboxIndex >= 0) {
-            // Update existing env inbox, keep other inboxes
-            mergedInboxes = existingInboxes.map((inbox, index) =>
-              index === envInboxIndex
-                ? { ...envInbox, selected: true }
-                : { ...inbox, selected: false }
-            );
-          } else {
-            // Add env inbox at the beginning, deselect others
-            mergedInboxes = [
-              { ...envInbox, selected: true },
-              ...existingInboxes.map((inbox) => ({ ...inbox, selected: false })),
-            ];
-          }
-
-          setAgentInboxes(mergedInboxes);
-          setItem(AGENT_INBOXES_LOCAL_STORAGE_KEY, JSON.stringify(mergedInboxes));
-          logger.log("Merged environment inbox with existing inboxes", {
-            envInbox: envInbox.id,
-            totalInboxes: mergedInboxes.length,
+        const envInboxes = getEnvInboxes();
+        if (envInboxes && envInboxes.length > 0) {
+          logger.log("Using inboxes exclusively from environment variables", {
+            count: envInboxes.length,
+            inboxes: envInboxes.map((i) => i.id),
           });
 
-          // Set up URL params for the env inbox (default selection)
+          setAgentInboxes(envInboxes);
+
+          // Set up URL params for the first (selected) inbox
+          const selectedInbox = envInboxes.find((i) => i.selected) || envInboxes[0];
           updateQueryParams(
             [AGENT_INBOX_PARAM, OFFSET_PARAM, LIMIT_PARAM, INBOX_PARAM],
-            [envInbox.id, "0", "10", "interrupted"]
+            [selectedInbox.id, "0", "10", "interrupted"]
           );
           return;
         }
@@ -472,22 +469,24 @@ export function useInboxes() {
         }))
       );
 
-      // Update localStorage
-      const agentInboxesStr = getItem(AGENT_INBOXES_LOCAL_STORAGE_KEY);
-      if (agentInboxesStr && agentInboxesStr !== "[]") {
-        try {
-          const parsedInboxes: AgentInbox[] = JSON.parse(agentInboxesStr);
-          const updatedInboxes = parsedInboxes.map((inbox) => ({
-            ...inbox,
-            selected: inbox.id === id,
-          }));
+      // Only update localStorage when NOT using env config
+      if (!hasEnvConfig) {
+        const agentInboxesStr = getItem(AGENT_INBOXES_LOCAL_STORAGE_KEY);
+        if (agentInboxesStr && agentInboxesStr !== "[]") {
+          try {
+            const parsedInboxes: AgentInbox[] = JSON.parse(agentInboxesStr);
+            const updatedInboxes = parsedInboxes.map((inbox) => ({
+              ...inbox,
+              selected: inbox.id === id,
+            }));
 
-          setItem(
-            AGENT_INBOXES_LOCAL_STORAGE_KEY,
-            JSON.stringify(updatedInboxes)
-          );
-        } catch (error) {
-          logger.error("Error updating selected inbox in localStorage", error);
+            setItem(
+              AGENT_INBOXES_LOCAL_STORAGE_KEY,
+              JSON.stringify(updatedInboxes)
+            );
+          } catch (error) {
+            logger.error("Error updating selected inbox in localStorage", error);
+          }
         }
       }
 
@@ -509,7 +508,7 @@ export function useInboxes() {
         router.push("/?" + newParams.toString());
       }
     },
-    [getItem, setItem, updateQueryParams, router]
+    [getItem, setItem, updateQueryParams, router, hasEnvConfig]
   );
 
   /**

@@ -27,7 +27,7 @@ import {
   processThreadWithoutInterrupts,
 } from "./utils";
 import { useLocalStorage } from "../hooks/use-local-storage";
-import { useInboxes } from "../hooks/use-inboxes";
+import { useInboxes, ENV_API_KEY_CONFIGURED, getEnvApiKey } from "../hooks/use-inboxes";
 import { logger } from "../utils/logger";
 
 type ThreadContentType<
@@ -86,7 +86,7 @@ const getClient = ({ agentInboxes, getItem, toast }: GetClientArgs) => {
   if (agentInboxes.length === 0) {
     toast({
       title: "Error",
-      description: "Agent inbox not found. Please add an inbox in settings. (",
+      description: "Agent inbox not found. Please add an inbox in settings.",
       variant: "destructive",
       duration: 3000,
     });
@@ -104,11 +104,14 @@ const getClient = ({ agentInboxes, getItem, toast }: GetClientArgs) => {
     return;
   }
 
-  const langchainApiKeyLS =
-    getItem(LANGCHAIN_API_KEY_LOCAL_STORAGE_KEY) || undefined;
+  // Prefer env API key; fall back to localStorage only when env is not configured
+  const langchainApiKey = ENV_API_KEY_CONFIGURED
+    ? getEnvApiKey() || undefined
+    : getItem(LANGCHAIN_API_KEY_LOCAL_STORAGE_KEY) || undefined;
+
   // Only show this error if the deployment URL is for a deployed LangGraph instance.
   // Local graphs do NOT require an API key.
-  if (!langchainApiKeyLS && deploymentUrl.includes("us.langgraph.app")) {
+  if (!langchainApiKey && deploymentUrl.includes("us.langgraph.app")) {
     toast({
       title: "Error",
       description: "Please add your LangSmith API key in settings.",
@@ -118,7 +121,7 @@ const getClient = ({ agentInboxes, getItem, toast }: GetClientArgs) => {
     return;
   }
 
-  return createClient({ deploymentUrl, langchainApiKey: langchainApiKeyLS });
+  return createClient({ deploymentUrl, langchainApiKey });
 };
 
 export function ThreadsProvider<
@@ -187,7 +190,9 @@ export function ThreadsProvider<
 
     setChatThreadsLoading(true);
     try {
-      const langchainApiKey = getItem(LANGCHAIN_API_KEY_LOCAL_STORAGE_KEY) || undefined;
+      const langchainApiKey = ENV_API_KEY_CONFIGURED
+        ? getEnvApiKey() || undefined
+        : getItem(LANGCHAIN_API_KEY_LOCAL_STORAGE_KEY) || undefined;
       const client = createClient({
         deploymentUrl: selectedDeploymentUrl,
         langchainApiKey,

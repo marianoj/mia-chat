@@ -15,6 +15,7 @@ import { toast } from "@/hooks/use-toast";
 import { useThreadsContext } from "@/components/agent-inbox/contexts/ThreadContext";
 import { LANGCHAIN_API_KEY_LOCAL_STORAGE_KEY } from "@/components/agent-inbox/constants";
 import { useLocalStorage } from "@/components/agent-inbox/hooks/use-local-storage";
+import { ENV_API_KEY_CONFIGURED, getEnvApiKey } from "@/components/agent-inbox/hooks/use-inboxes";
 
 export type ChatStateType = { messages: Message[] };
 
@@ -247,7 +248,9 @@ export const ChatStreamProvider: React.FC<ChatStreamProviderProps> = ({
   const selectedInbox = agentInboxes.find((i) => i.selected);
   const apiUrl = selectedInbox?.deploymentUrl || "";
   const assistantId = selectedInbox?.graphId || "";
-  const apiKey = getItem(LANGCHAIN_API_KEY_LOCAL_STORAGE_KEY) || null;
+  const apiKey = ENV_API_KEY_CONFIGURED
+    ? getEnvApiKey()
+    : getItem(LANGCHAIN_API_KEY_LOCAL_STORAGE_KEY) || null;
 
   // If no inbox is selected, show a message
   if (!selectedInbox || !apiUrl || !assistantId) {

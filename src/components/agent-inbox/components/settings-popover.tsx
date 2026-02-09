@@ -20,6 +20,7 @@ import { forceInboxBackfill, isBackfillCompleted } from "../utils/backfill";
 import { useToast } from "@/hooks/use-toast";
 import { logger } from "../utils/logger";
 import { cn } from "@/lib/utils";
+import { ENV_API_KEY_CONFIGURED } from "../hooks/use-inboxes";
 
 export function SettingsPopover() {
   const langchainApiKeyNotSet = React.useRef(true);
@@ -127,26 +128,37 @@ export function SettingsPopover() {
             </p>
           </div>
           <div className="flex flex-col items-start gap-4 w-full">
-            <div className="flex flex-col items-start gap-2 w-full">
-              <div className="flex flex-col gap-1 w-full items-start">
-                <Label htmlFor="langchain-api-key">
-                  LangSmith API Key <span className="text-red-500">*</span>
-                </Label>
-                <p className="text-xs text-muted-foreground">
-                  This value is stored in your browser&apos;s local storage and
-                  is only used to authenticate requests sent to your LangGraph
-                  server.
-                </p>
+            {ENV_API_KEY_CONFIGURED ? (
+              <div className="flex flex-col items-start gap-2 w-full">
+                <div className="flex flex-col gap-1 w-full items-start">
+                  <Label>LangSmith API Key</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Configured via environment variable.
+                  </p>
+                </div>
               </div>
-              <PasswordInput
-                id="langchain-api-key"
-                placeholder="lsv2_pt_..."
-                className="min-w-full"
-                required
-                value={langchainApiKey}
-                onChange={handleChangeLangChainApiKey}
-              />
-            </div>
+            ) : (
+              <div className="flex flex-col items-start gap-2 w-full">
+                <div className="flex flex-col gap-1 w-full items-start">
+                  <Label htmlFor="langchain-api-key">
+                    LangSmith API Key <span className="text-red-500">*</span>
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    This value is stored in your browser&apos;s local storage and
+                    is only used to authenticate requests sent to your LangGraph
+                    server.
+                  </p>
+                </div>
+                <PasswordInput
+                  id="langchain-api-key"
+                  placeholder="lsv2_pt_..."
+                  className="min-w-full"
+                  required
+                  value={langchainApiKey}
+                  onChange={handleChangeLangChainApiKey}
+                />
+              </div>
+            )}
             {!backfillCompleted && (
               <div className="flex flex-col items-start gap-2 w-full border-t pt-4">
                 <div className="flex flex-col gap-1 w-full items-start">

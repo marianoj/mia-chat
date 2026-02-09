@@ -34,6 +34,7 @@ import {
 } from "../ui/tooltip";
 import { AddAgentInboxDialog } from "../agent-inbox/components/add-agent-inbox-dialog";
 import { useLocalStorage } from "../agent-inbox/hooks/use-local-storage";
+import { ENV_INBOXES_CONFIGURED } from "../agent-inbox/hooks/use-inboxes";
 import { DropdownDialogMenu } from "../agent-inbox/components/dropdown-and-dialog";
 import { Thread } from "@langchain/langgraph-sdk";
 import { ThreadActionsMenu } from "./thread-actions-menu";
@@ -154,16 +155,18 @@ export function AppSidebar() {
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
               Agent Inboxes
             </p>
-            <AddAgentInboxDialog
-              hideTrigger={false}
-              langchainApiKey={langchainApiKey}
-              handleChangeLangChainApiKey={handleChangeLangChainApiKey}
-              customTrigger={
-                <button className="p-1 hover:bg-gray-200 rounded transition-colors">
-                  <Plus className="h-4 w-4 text-gray-500" />
-                </button>
-              }
-            />
+            {!ENV_INBOXES_CONFIGURED && (
+              <AddAgentInboxDialog
+                hideTrigger={false}
+                langchainApiKey={langchainApiKey}
+                handleChangeLangChainApiKey={handleChangeLangChainApiKey}
+                customTrigger={
+                  <button className="p-1 hover:bg-gray-200 rounded transition-colors">
+                    <Plus className="h-4 w-4 text-gray-500" />
+                  </button>
+                }
+              />
+            )}
           </div>
           <SidebarGroupContent>
             <SidebarMenu className="flex flex-col gap-1">
@@ -205,10 +208,12 @@ export function AppSidebar() {
                       </Tooltip>
                     </TooltipProvider>
 
-                    <DropdownDialogMenu
-                      item={item}
-                      deleteAgentInbox={deleteAgentInbox}
-                    />
+                    {!ENV_INBOXES_CONFIGURED && (
+                      <DropdownDialogMenu
+                        item={item}
+                        deleteAgentInbox={deleteAgentInbox}
+                      />
+                    )}
                   </SidebarMenuItem>
                 );
               })}
