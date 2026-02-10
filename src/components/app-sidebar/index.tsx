@@ -106,7 +106,7 @@ export function AppSidebar() {
     } catch (e) {
       console.error("Error getting/setting LangSmith API key", e);
     }
-  }, [langchainApiKey]);
+  }, [langchainApiKey, getItem]);
 
   const handleChangeLangChainApiKey = (
     e: React.ChangeEvent<HTMLInputElement>

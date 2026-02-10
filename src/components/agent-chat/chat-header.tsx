@@ -4,6 +4,12 @@ import React from "react";
 import { useChatStreamContext } from "@/providers/ChatStream";
 import { Message } from "@langchain/langgraph-sdk";
 
+type UsageSummary = {
+  modelName: string | null;
+  totalTokens: number;
+  totalCost: number | null;
+};
+
 function extractNumber(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) {
     return value;
@@ -88,7 +94,7 @@ function getMessageUsdCost(message: Message): number | null {
 export function ChatHeader() {
   const { messages } = useChatStreamContext();
 
-  const usageSummary = React.useMemo(() => {
+  const usageSummary = React.useMemo<UsageSummary>(() => {
     const aiMessages = messages.filter((m) => m.type === "ai");
     let modelName: string | null = null;
     let totalTokens = 0;
@@ -109,6 +115,9 @@ export function ChatHeader() {
     return { modelName, totalTokens, totalCost };
   }, [messages]);
 
+  const formattedCost =
+    usageSummary.totalCost == null ? "-" : usageSummary.totalCost.toFixed(4);
+
   return (
     <div className="flex items-center justify-end gap-3 px-3 sm:px-4 py-2 border-b border-gray-200 bg-white text-xs text-gray-600">
       <span className="hidden md:inline">
@@ -120,7 +129,7 @@ export function ChatHeader() {
       </span>
 
       <span className="hidden sm:inline font-medium">
-        ${usageSummary.totalCost != null ? usageSummary.totalCost.toFixed(4) : "-"}
+        ${formattedCost}
       </span>
     </div>
   );

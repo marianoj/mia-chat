@@ -69,7 +69,7 @@ export function ThreadView<
     } catch (e) {
       logger.error("Error updating query params & setting thread data", e);
     }
-  }, [threads, loading, threadId]);
+  }, [threads, loading, threadId, updateQueryParams]);
 
   const handleShowSidePanel = (
     showState: boolean,
