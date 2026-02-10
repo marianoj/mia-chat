@@ -16,12 +16,13 @@ import {
   House,
   LoaderCircle,
   Plus,
+  MessageSquare,
 } from "lucide-react";
 import { agentInboxSvg } from "../agent-inbox/components/agent-inbox-logo";
 import { SettingsPopover } from "../agent-inbox/components/settings-popover";
 import React from "react";
 import { useSidebar } from "@/components/ui/sidebar";
-import { TooltipIconButton } from "../ui/assistant-ui/tooltip-icon-button";
+import { Button } from "../ui/button";
 import { useThreadsContext } from "../agent-inbox/contexts/ThreadContext";
 import { prettifyText, isDeployedUrl } from "../agent-inbox/utils";
 import { cn } from "@/lib/utils";
@@ -90,6 +91,7 @@ export function AppSidebar() {
   } = useThreadsContext();
   const [langchainApiKey, setLangchainApiKey] = React.useState("");
   const { getItem, setItem } = useLocalStorage();
+  const { open, isMobile, setOpenMobile } = useSidebar();
 
   React.useEffect(() => {
     try {
@@ -114,11 +116,17 @@ export function AppSidebar() {
   };
 
   const handleNewChat = () => {
+    if (isMobile) {
+      setOpenMobile(false);
+    }
     setCurrentChatThreadId(null);
     router.push("/chat");  // No thread param = new chat
   };
 
   const handleSelectThread = (threadId: string) => {
+    if (isMobile) {
+      setOpenMobile(false);
+    }
     setCurrentChatThreadId(threadId);
     router.push(`/chat?thread=${threadId}`);
   };
@@ -139,7 +147,7 @@ export function AppSidebar() {
   }, [chatThreads]);
 
   return (
-    <Sidebar className="border-r-[0px] bg-[#F9FAFB]">
+    <Sidebar collapsible="icon" className="border-r-[0px] bg-[#F9FAFB]">
       <SidebarContent className="flex flex-col h-screen pb-4 pt-6">
         {/* Header */}
         <div className="flex items-center justify-between px-4">
@@ -152,7 +160,12 @@ export function AppSidebar() {
         {/* Agent Inboxes Section */}
         <SidebarGroup className="pt-4 px-2">
           <div className="flex items-center justify-between px-2 mb-2">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            <p
+              className={cn(
+                "text-xs font-semibold text-gray-500 uppercase tracking-wide",
+                !open && "sr-only"
+              )}
+            >
               Agent Inboxes
             </p>
             {!ENV_INBOXES_CONFIGURED && (
@@ -192,14 +205,16 @@ export function AppSidebar() {
                             ) : (
                               <House className="w-4 h-4 text-green-500" />
                             )}
-                            <span
-                              className={cn(
-                                "truncate min-w-0 text-sm",
-                                item.selected ? "text-black font-medium" : "text-gray-600"
-                              )}
-                            >
-                              {label}
-                            </span>
+                            {open && (
+                              <span
+                                className={cn(
+                                  "truncate min-w-0 text-sm",
+                                  item.selected ? "text-black font-medium" : "text-gray-600"
+                                )}
+                              >
+                                {label}
+                              </span>
+                            )}
                           </SidebarMenuButton>
                         </TooltipTrigger>
                         <TooltipContent>
@@ -224,7 +239,12 @@ export function AppSidebar() {
         {/* Threads Section */}
         <SidebarGroup className="flex-1 pt-4 px-2 overflow-hidden flex flex-col">
           <div className="flex items-center justify-between px-2 mb-2">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            <p
+              className={cn(
+                "text-xs font-semibold text-gray-500 uppercase tracking-wide",
+                !open && "sr-only"
+              )}
+            >
               Threads
             </p>
             <button
@@ -244,7 +264,7 @@ export function AppSidebar() {
               <div className="px-2 py-4 text-center text-sm text-gray-500">
                 No conversations yet
               </div>
-            ) : (
+            ) : open ? (
               <div className="space-y-3">
                 {Object.entries(groupedThreads).map(([date, dateThreads]) => (
                   <div key={date}>
@@ -264,16 +284,17 @@ export function AppSidebar() {
                                 "bg-gray-100"
                             )}
                           >
-                            <button
-                              onClick={() => handleSelectThread(thread.thread_id)}
-                              className={cn(
+                              <button
+                                onClick={() => handleSelectThread(thread.thread_id)}
+                                className={cn(
                                 "flex-1 text-left px-3 py-2 text-sm flex items-center gap-2 min-w-0",
                                 currentChatThreadId === thread.thread_id &&
                                   "font-medium"
                               )}
-                            >
-                              <span className="truncate">{title}</span>
-                            </button>
+                              >
+                                <MessageSquare className="h-4 w-4 text-gray-500 shrink-0" />
+                                <span className="truncate">{title}</span>
+                              </button>
                             <div className="pr-2">
                               <ThreadActionsMenu
                                 thread={thread}
@@ -289,6 +310,26 @@ export function AppSidebar() {
                   </div>
                 ))}
               </div>
+            ) : (
+              <SidebarMenu className="flex flex-col gap-1">
+                {chatThreads.map((thread) => {
+                  const title = getThreadTitle(thread);
+                  const isSelected = currentChatThreadId === thread.thread_id;
+
+                  return (
+                    <SidebarMenuItem key={thread.thread_id}>
+                      <SidebarMenuButton
+                        tooltip={title}
+                        onClick={() => handleSelectThread(thread.thread_id)}
+                        className={cn(isSelected && "bg-gray-100")}
+                      >
+                        <MessageSquare className="h-4 w-4 text-gray-500" />
+                        <span>{title}</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
             )}
           </SidebarGroupContent>
         </SidebarGroup>
@@ -346,12 +387,14 @@ export function AppSidebarTrigger({
   }
 
   return (
-    <TooltipIconButton
-      tooltip="Toggle Sidebar"
+    <Button
       onClick={toggleSidebar}
-      className={className}
+      className={cn("size-8 sm:size-6 p-1.5 sm:p-1", className)}
+      variant="ghost"
+      size="icon"
+      aria-label="Toggle sidebar"
     >
       {sidebarTriggerSVG}
-    </TooltipIconButton>
+    </Button>
   );
 }

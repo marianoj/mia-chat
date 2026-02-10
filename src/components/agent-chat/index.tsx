@@ -4,10 +4,12 @@ import { ChatStreamProvider } from "@/providers/ChatStream";
 import { ChatThread } from "./thread";
 import { ChatSettingsProvider } from "./chat-settings-context";
 import { StickToBottom } from "use-stick-to-bottom";
+import { ChatHeader } from "./chat-header";
 
 function ChatContent() {
   return (
     <div className="flex h-full flex-col">
+      <ChatHeader />
       {/* Chat thread */}
       <div className="flex-1 overflow-hidden">
         <StickToBottom className="h-full">

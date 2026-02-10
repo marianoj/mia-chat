@@ -6,13 +6,11 @@ import { HumanMessage, AIMessage, AIMessageLoading, ToolCallDisplay } from "./me
 import { DO_NOT_RENDER_ID_PREFIX } from "@/lib/ensure-tool-responses";
 import { useStickToBottomContext } from "use-stick-to-bottom";
 import { cn } from "@/lib/utils";
-import { X, FileIcon, ImageIcon, Plus, LoaderCircle } from "lucide-react";
+import { X, FileIcon, ImageIcon, Plus, LoaderCircle, ArrowUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { useFileUpload, SUPPORTED_FILE_TYPES } from "@/hooks/use-file-upload";
 import { MultimodalBlock } from "@/lib/multimodal-utils";
-import { useChatSettings } from "./chat-settings-context";
 import { useToolCallTracker } from "./use-tool-call-tracker";
 
 function ContentBlockPreview({
@@ -62,7 +60,7 @@ export function ChatThread() {
     error,
   } = stream;
 
-  const { showToolCalls, setShowToolCalls } = useChatSettings();
+  const showToolCalls = true;
   const toolCallTracker = useToolCallTracker(messages);
   const [inputValue, setInputValue] = useState("");
 
@@ -217,15 +215,15 @@ export function ChatThread() {
       <div className="bg-white p-4">
         <div
           className={cn(
-            "bg-muted relative z-10 mx-auto w-full max-w-3xl rounded-2xl shadow-xs transition-all",
+            "relative z-10 mx-auto w-full max-w-3xl rounded-xl border border-gray-200 bg-white transition-colors",
             dragOver
-              ? "border-primary border-2 border-dotted"
-              : "border border-solid"
+              ? "border-primary border-dotted"
+              : "border-solid"
           )}
         >
           <form
             onSubmit={handleSubmit}
-            className="mx-auto grid max-w-3xl grid-rows-[1fr_auto] gap-2"
+            className="mx-auto grid max-w-3xl grid-rows-[1fr_auto]"
           >
             {/* Content blocks preview */}
             {contentBlocks.length > 0 && (
@@ -246,34 +244,20 @@ export function ChatThread() {
               onKeyDown={handleKeyDown}
               onPaste={handlePaste}
               placeholder="Type your message..."
-              className="field-sizing-content resize-none border-none bg-transparent p-3.5 pb-0 shadow-none ring-0 outline-none focus:ring-0 focus:outline-none"
+              className="field-sizing-content min-h-[44px] max-h-40 w-full resize-none border-0 bg-transparent px-3 py-2 text-sm leading-6 shadow-none outline-none ring-0 placeholder:text-gray-400 focus:outline-none focus:ring-0"
             />
 
-            <div className="flex flex-col gap-3 p-2 pt-4 sm:flex-row sm:items-center sm:gap-6">
-              <div className="flex items-center justify-between gap-4 sm:gap-6">
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    id="hide-tool-calls"
-                    checked={!showToolCalls}
-                    onCheckedChange={(checked) => setShowToolCalls(!checked)}
-                  />
-                  <Label
-                    htmlFor="hide-tool-calls"
-                    className="text-sm text-gray-600 whitespace-nowrap"
-                  >
-                    Hide Tool Calls
-                  </Label>
-                </div>
-
+            <div className="flex items-center justify-between border-t border-gray-100 px-2 py-2">
+              <div className="flex items-center gap-4">
                 <Label
                   htmlFor="file-input"
-                  className="flex cursor-pointer items-center gap-2"
+                  className="flex cursor-pointer items-center gap-2 text-gray-500 hover:text-gray-700"
                 >
-                  <Plus className="size-5 text-gray-600" />
-                  <span className="text-sm text-gray-600 hidden sm:inline">
+                  <Plus className="size-4" />
+                  <span className="text-xs hidden sm:inline">
                     Upload PDF or Image
                   </span>
-                  <span className="text-sm text-gray-600 sm:hidden">
+                  <span className="text-xs sm:hidden">
                     Upload
                   </span>
                 </Label>
@@ -291,18 +275,19 @@ export function ChatThread() {
                 <Button
                   key="stop"
                   onClick={() => stop()}
-                  className="w-full sm:w-auto sm:ml-auto"
+                  className="h-8 rounded-full px-3 text-xs"
                 >
                   <LoaderCircle className="h-4 w-4 animate-spin" />
-                  Cancel
+                  Stop
                 </Button>
               ) : (
                 <Button
                   type="submit"
-                  className="w-full sm:w-auto sm:ml-auto shadow-md transition-all"
+                  className="h-8 w-8 rounded-full p-0 bg-black text-white hover:bg-gray-800 disabled:bg-gray-300 disabled:text-gray-100"
                   disabled={!inputValue.trim() && contentBlocks.length === 0}
                 >
-                  Send
+                  <ArrowUp className="h-4 w-4" />
+                  <span className="sr-only">Send</span>
                 </Button>
               )}
             </div>

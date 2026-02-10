@@ -365,7 +365,7 @@ export function AIMessage({ message, cachedToolCalls, getToolResult, isStreaming
     <div className="flex justify-start w-full">
       <div className={cn("flex flex-col gap-2 w-full")}>
         {contentString && (
-          <div className="bg-gray-100 rounded-2xl px-4 py-2">
+          <div className="w-full">
             <MarkdownText>{contentString}</MarkdownText>
           </div>
         )}

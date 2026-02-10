@@ -1,8 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect } from "react";
-
-const SHOW_TOOL_CALLS_KEY = "chat-show-tool-calls";
+import React, { createContext, useContext } from "react";
 
 interface ChatSettingsContextValue {
   showToolCalls: boolean;
@@ -12,34 +10,10 @@ interface ChatSettingsContextValue {
 const ChatSettingsContext = createContext<ChatSettingsContextValue | null>(null);
 
 export function ChatSettingsProvider({ children }: { children: React.ReactNode }) {
-  const [showToolCalls, setShowToolCallsState] = useState(true);
-  const [isHydrated, setIsHydrated] = useState(false);
-
-  // Load setting from localStorage on mount
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const stored = localStorage.getItem(SHOW_TOOL_CALLS_KEY);
-      if (stored !== null) {
-        setShowToolCallsState(stored === "true");
-      }
-      setIsHydrated(true);
-    }
-  }, []);
-
-  const setShowToolCalls = (value: boolean) => {
-    setShowToolCallsState(value);
-    if (typeof window !== "undefined") {
-      localStorage.setItem(SHOW_TOOL_CALLS_KEY, String(value));
-    }
-  };
-
-  // Prevent hydration mismatch by not rendering until hydrated
-  if (!isHydrated) {
-    return <>{children}</>;
-  }
+  const setShowToolCalls = () => {};
 
   return (
-    <ChatSettingsContext.Provider value={{ showToolCalls, setShowToolCalls }}>
+    <ChatSettingsContext.Provider value={{ showToolCalls: true, setShowToolCalls }}>
       {children}
     </ChatSettingsContext.Provider>
   );

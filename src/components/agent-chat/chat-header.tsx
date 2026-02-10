@@ -2,130 +2,126 @@
 
 import React from "react";
 import { useChatStreamContext } from "@/providers/ChatStream";
-import { useThreadsContext } from "@/components/agent-inbox/contexts/ThreadContext";
-import { prettifyText, isDeployedUrl } from "@/components/agent-inbox/utils";
-import { Thread } from "@langchain/langgraph-sdk";
-import { LoaderCircle, MessageSquare, House, UploadCloud } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Message } from "@langchain/langgraph-sdk";
 
-// Get thread title from thread data (same logic as sidebar)
-function getThreadTitle(thread: Thread): string {
-  if (thread.metadata?.title) {
-    return thread.metadata.title as string;
+function extractNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
   }
-
-  const values = thread.values as Record<string, unknown> | undefined;
-  if (values?.messages && Array.isArray(values.messages)) {
-    const firstHumanMessage = values.messages.find(
-      (m: { type?: string }) => m.type === "human"
-    );
-    if (firstHumanMessage) {
-      const content = firstHumanMessage.content;
-      if (typeof content === "string") {
-        return content.slice(0, 50) + (content.length > 50 ? "..." : "");
-      }
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
     }
   }
-
-  return `Chat ${thread.thread_id.slice(0, 8)}...`;
+  return null;
 }
 
-// Format relative date
-function formatRelativeDate(date: string | Date): string {
-  const d = new Date(date);
-  const now = new Date();
-  const isToday = d.toDateString() === now.toDateString();
-  const yesterday = new Date(now);
-  yesterday.setDate(yesterday.getDate() - 1);
-  const isYesterday = d.toDateString() === yesterday.toDateString();
+function getMessageModelName(message: Message): string | null {
+  if (message.type !== "ai") return null;
+  const aiMessage = message as Message & {
+    response_metadata?: Record<string, unknown>;
+    additional_kwargs?: Record<string, unknown>;
+  };
+  const fromResponse = aiMessage.response_metadata;
+  const fromAdditional = aiMessage.additional_kwargs;
 
-  if (isToday) return "Today";
-  if (isYesterday) return "Yesterday";
-  return d.toLocaleDateString([], { month: "short", day: "numeric" });
+  return (
+    (typeof fromResponse?.model_name === "string" && fromResponse.model_name) ||
+    (typeof fromResponse?.model === "string" && fromResponse.model) ||
+    (typeof fromAdditional?.model_name === "string" && fromAdditional.model_name) ||
+    (typeof fromAdditional?.model === "string" && fromAdditional.model) ||
+    null
+  );
+}
+
+function getMessageTokenCount(message: Message): number {
+  if (message.type !== "ai") return 0;
+  const aiMessage = message as Message & {
+    usage_metadata?: Record<string, unknown>;
+    response_metadata?: Record<string, unknown>;
+  };
+
+  const usageTotal = extractNumber(aiMessage.usage_metadata?.total_tokens);
+  if (usageTotal != null) return usageTotal;
+
+  const usageInput = extractNumber(aiMessage.usage_metadata?.input_tokens) ?? 0;
+  const usageOutput = extractNumber(aiMessage.usage_metadata?.output_tokens) ?? 0;
+  const usageSum = usageInput + usageOutput;
+  if (usageSum > 0) return usageSum;
+
+  const responseTokenUsage = aiMessage.response_metadata?.token_usage as
+    | Record<string, unknown>
+    | undefined;
+  const responseTotal = extractNumber(responseTokenUsage?.total_tokens);
+  if (responseTotal != null) return responseTotal;
+
+  const responseInput = extractNumber(responseTokenUsage?.prompt_tokens) ?? 0;
+  const responseOutput = extractNumber(responseTokenUsage?.completion_tokens) ?? 0;
+  return responseInput + responseOutput;
+}
+
+function getMessageUsdCost(message: Message): number | null {
+  if (message.type !== "ai") return null;
+  const aiMessage = message as Message & {
+    response_metadata?: Record<string, unknown>;
+    usage_metadata?: Record<string, unknown>;
+  };
+  const response = aiMessage.response_metadata;
+  const tokenUsage = response?.token_usage as Record<string, unknown> | undefined;
+
+  const direct =
+    extractNumber(response?.total_cost_usd) ??
+    extractNumber(response?.total_cost) ??
+    extractNumber(response?.cost_usd) ??
+    extractNumber(response?.cost) ??
+    extractNumber(tokenUsage?.total_cost_usd) ??
+    extractNumber(tokenUsage?.total_cost) ??
+    extractNumber(tokenUsage?.cost_usd) ??
+    extractNumber(tokenUsage?.cost) ??
+    extractNumber(aiMessage.usage_metadata?.total_cost_usd) ??
+    extractNumber(aiMessage.usage_metadata?.total_cost);
+
+  return direct;
 }
 
 export function ChatHeader() {
-  const { messages, isLoading, threadId } = useChatStreamContext();
-  const { agentInboxes, chatThreads } = useThreadsContext();
+  const { messages } = useChatStreamContext();
 
-  // Get selected agent inbox
-  const selectedInbox = agentInboxes.find((i) => i.selected);
-  const agentName = selectedInbox?.name || (selectedInbox?.graphId ? prettifyText(selectedInbox.graphId) : "Agent");
-  const isDeployed = selectedInbox?.deploymentUrl ? isDeployedUrl(selectedInbox.deploymentUrl) : false;
+  const usageSummary = React.useMemo(() => {
+    const aiMessages = messages.filter((m) => m.type === "ai");
+    let modelName: string | null = null;
+    let totalTokens = 0;
+    let totalCost: number | null = null;
 
-  // Get current thread
-  const currentThread = chatThreads.find((t) => t.thread_id === threadId);
-  const threadTitle = currentThread ? getThreadTitle(currentThread) : null;
-  const threadCreatedAt = currentThread?.created_at;
+    aiMessages.forEach((message) => {
+      const model = getMessageModelName(message);
+      if (model) modelName = model;
 
-  // Count visible messages (filter out system/internal messages)
-  const visibleMessageCount = messages.filter(
-    (m) => m.type === "human" || m.type === "ai"
-  ).length;
+      totalTokens += getMessageTokenCount(message);
+
+      const cost = getMessageUsdCost(message);
+      if (cost != null) {
+        totalCost = (totalCost ?? 0) + cost;
+      }
+    });
+
+    return { modelName, totalTokens, totalCost };
+  }, [messages]);
 
   return (
-    <div className="flex items-center justify-between px-3 sm:px-4 py-2 sm:py-3 border-b border-gray-200 bg-white">
-      {/* Left: Agent info and thread title */}
-      <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-        {/* Agent badge */}
-        <div className="flex items-center gap-1.5 flex-shrink-0">
-          {isDeployed ? (
-            <UploadCloud className="w-4 h-4 text-blue-500" />
-          ) : (
-            <House className="w-4 h-4 text-green-500" />
-          )}
-          <span className="text-xs sm:text-sm font-medium text-gray-700 hidden sm:inline">{agentName}</span>
-        </div>
+    <div className="flex items-center justify-end gap-3 px-3 sm:px-4 py-2 border-b border-gray-200 bg-white text-xs text-gray-600">
+      <span className="hidden md:inline">
+        {usageSummary.modelName ? usageSummary.modelName : "Model: -"}
+      </span>
 
-        {/* Separator - hidden on mobile */}
-        <span className="text-gray-300 hidden sm:inline">/</span>
+      <span className="hidden sm:inline">
+        Tokens: {usageSummary.totalTokens.toLocaleString()}
+      </span>
 
-        {/* Thread title or "New Chat" */}
-        <div className="flex items-center gap-2 min-w-0">
-          {threadTitle ? (
-            <span className="text-xs sm:text-sm text-gray-900 truncate max-w-[150px] sm:max-w-[300px]">
-              {threadTitle}
-            </span>
-          ) : (
-            <span className="text-xs sm:text-sm text-gray-500 italic">New Chat</span>
-          )}
-
-          {/* Loading indicator */}
-          {isLoading && (
-            <LoaderCircle className="w-4 h-4 animate-spin text-blue-500 flex-shrink-0" />
-          )}
-        </div>
-      </div>
-
-      {/* Right: Metrics */}
-      <div className="flex items-center gap-2 sm:gap-4 text-sm text-gray-500 flex-shrink-0">
-        {/* Message count - hidden on small screens */}
-        {visibleMessageCount > 0 && (
-          <div className="hidden sm:flex items-center gap-1.5">
-            <MessageSquare className="w-4 h-4" />
-            <span>{visibleMessageCount}</span>
-          </div>
-        )}
-
-        {/* Thread date - hidden on small screens */}
-        {threadCreatedAt && (
-          <span className={cn("text-xs hidden sm:inline", isLoading && "opacity-50")}>
-            {formatRelativeDate(threadCreatedAt)}
-          </span>
-        )}
-
-        {/* Deployment badge */}
-        <span
-          className={cn(
-            "text-xs px-2 py-0.5 rounded-full",
-            isDeployed
-              ? "bg-blue-100 text-blue-700"
-              : "bg-green-100 text-green-700"
-          )}
-        >
-          {isDeployed ? "Deployed" : "Local"}
-        </span>
-      </div>
+      <span className="hidden sm:inline font-medium">
+        ${usageSummary.totalCost != null ? usageSummary.totalCost.toFixed(4) : "-"}
+      </span>
     </div>
   );
 }
