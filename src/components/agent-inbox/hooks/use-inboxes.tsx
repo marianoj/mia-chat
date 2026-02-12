@@ -15,6 +15,7 @@ import { AgentInbox } from "../types";
 import { useRouter } from "next/navigation";
 import { logger } from "../utils/logger";
 import { runInboxBackfill } from "../utils/backfill";
+import { fetchDeploymentInfo, isDeployedUrl } from "../utils";
 
 // Environment variable defaults for deployment
 const DEFAULT_DEPLOYMENT_URL = process.env.NEXT_PUBLIC_API_URL;
@@ -74,6 +75,41 @@ function getEnvInboxes(): AgentInbox[] | null {
   return null;
 }
 
+/**
+ * Enrich env-configured inboxes with deployment info (project_id, tenant_id).
+ * This enables features like "Open in Studio" that require these IDs.
+ */
+async function enrichEnvInboxes(
+  inboxes: AgentInbox[]
+): Promise<AgentInbox[]> {
+  const enriched = await Promise.all(
+    inboxes.map(async (inbox) => {
+      if (!isDeployedUrl(inbox.deploymentUrl)) return inbox;
+
+      try {
+        const info = await fetchDeploymentInfo(inbox.deploymentUrl);
+        if (info?.host?.project_id) {
+          return {
+            ...inbox,
+            id: `${info.host.project_id}:${inbox.graphId}`,
+            ...(info.host.tenant_id && { tenantId: info.host.tenant_id }),
+          };
+        }
+        if (info?.host?.tenant_id) {
+          return { ...inbox, tenantId: info.host.tenant_id };
+        }
+      } catch (error) {
+        logger.error(
+          `Failed to fetch deployment info for ${inbox.deploymentUrl}`,
+          error
+        );
+      }
+      return inbox;
+    })
+  );
+  return enriched;
+}
+
 /** Whether inboxes are configured via environment variables */
 export const ENV_INBOXES_CONFIGURED = getEnvInboxes() !== null;
 
@@ -127,14 +163,26 @@ export function useInboxes() {
             inboxes: envInboxes.map((i) => i.id),
           });
 
+          // Set initial state immediately so the UI is responsive
           setAgentInboxes(envInboxes);
 
-          // Set up URL params for the first (selected) inbox
           const selectedInbox = envInboxes.find((i) => i.selected) || envInboxes[0];
           updateQueryParams(
             [AGENT_INBOX_PARAM, OFFSET_PARAM, LIMIT_PARAM, INBOX_PARAM],
             [selectedInbox.id, "0", "10", "interrupted"]
           );
+
+          // Enrich with deployment info (project_id, tenant_id) in background
+          enrichEnvInboxes(envInboxes).then((enrichedInboxes) => {
+            const enrichedSelected =
+              enrichedInboxes.find((i) => i.selected) || enrichedInboxes[0];
+            // Update state with enriched inboxes
+            setAgentInboxes(enrichedInboxes);
+            // Update URL if the selected inbox ID changed (env-X -> projectId:graphId)
+            if (enrichedSelected.id !== selectedInbox.id) {
+              updateQueryParams(AGENT_INBOX_PARAM, enrichedSelected.id);
+            }
+          });
           return;
         }
       }
