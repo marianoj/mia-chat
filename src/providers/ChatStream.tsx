@@ -153,6 +153,8 @@ const ChatStreamSession = ({
   // Merged messages state - preserves tool calls across stream updates
   const [mergedMessages, setMergedMessages] = useState<Message[]>([]);
   const lastThreadIdForMessages = useRef<string | null>(null);
+  // Track when messages were intentionally cleared so we don't re-populate from stale stream data
+  const messagesCleared = useRef(false);
 
   // Only sync when external threadId actually changes (from sidebar click)
   useEffect(() => {
@@ -188,6 +190,7 @@ const ChatStreamSession = ({
   useEffect(() => {
     if (threadId !== lastThreadIdForMessages.current) {
       lastThreadIdForMessages.current = threadId;
+      messagesCleared.current = true;
       setMergedMessages([]);
     }
   }, [threadId]);
@@ -195,6 +198,16 @@ const ChatStreamSession = ({
   // Merge incoming messages from stream with our local state
   useEffect(() => {
     if (streamValue.messages.length > 0) {
+      // After a thread change, skip stale messages from the previous thread.
+      // The useStream hook may still hold old messages briefly after threadId changes.
+      // Once it emits an empty array (reset) or fresh messages, we allow merging again.
+      if (messagesCleared.current) {
+        // If threadId is null (new chat), stream shouldn't have messages yet
+        if (threadId === null) return;
+        // For existing threads, the stream will reload messages for the new thread.
+        // Allow them through since they belong to the new thread.
+        messagesCleared.current = false;
+      }
       setMergedMessages(prev => {
         // If empty (just switched threads), use fresh messages
         if (prev.length === 0) {
@@ -203,8 +216,11 @@ const ChatStreamSession = ({
         // Otherwise merge to preserve tool calls
         return mergeMessages(prev, streamValue.messages);
       });
+    } else if (messagesCleared.current) {
+      // Stream emitted empty messages after clear - reset the flag
+      messagesCleared.current = false;
     }
-  }, [streamValue.messages]);
+  }, [streamValue.messages, threadId]);
 
   useEffect(() => {
     checkGraphStatus(apiUrl, apiKey).then((ok) => {
